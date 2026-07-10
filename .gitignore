@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Downloaded asset pack archives & extracted sources
+# (the models the game uses are copied into proto/assets/models/)
+proto/assets/*.zip
+proto/assets/nature-kit/
+proto/assets/survival-kit/
+proto/assets/platformer-kit/
+proto/assets/blaster-kit/
+
+# OS junk
+Thumbs.db
+.DS_Store

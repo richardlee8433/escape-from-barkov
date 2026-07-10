@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Escape from Barkov v0.4</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #241c12; font-family: system-ui, "Noto Sans TC", sans-serif; }
+    #app { width: 100%; height: 100%; }
+    .hidden { display: none !important; }
+
+    /* ---- 開始畫面 ---- */
+    #title-screen {
+      position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 14px;
+      background: radial-gradient(ellipse at 50% 40%, #3a2f1e 0%, #1c1610 70%);
+      color: #f0e3c8;
+    }
+    #title-screen h1 { font-size: 42px; margin: 0; letter-spacing: 2px; text-shadow: 0 3px 0 #00000055; }
+    #title-screen .ver { opacity: .55; font-size: 13px; margin-bottom: 14px; }
+    #title-screen button {
+      font-size: 17px; padding: 10px 34px; border-radius: 10px; border: 1px solid #8a6f4a;
+      background: #5b4630; color: #ffe9bd; cursor: pointer;
+    }
+    #title-screen button:hover { background: #6d5539; }
+    #howto {
+      position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.55);
+    }
+    #howto .card {
+      background: #2c2418; color: #f0e3c8; border: 1px solid #8a6f4a; border-radius: 14px;
+      padding: 26px 34px; line-height: 2; font-size: 15px;
+    }
+    #howto .card h3 { margin-top: 0; }
+    #howto kbd {
+      background: #4a3b26; border-radius: 5px; padding: 1px 8px; margin-right: 6px;
+      font-family: inherit; border: 1px solid #6d5539;
+    }
+
+    /* ---- HUD ---- */
+    #hud {
+      position: fixed; top: 14px; left: 16px; z-index: 20; color: #ffe9bd;
+      font-size: 15px; display: flex; gap: 18px;
+      background: rgba(20, 15, 8, .55); padding: 8px 16px; border-radius: 10px;
+      border: 1px solid rgba(138, 111, 74, .5);
+    }
+    #hud b { color: #fff; }
+    #hotbar {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      z-index: 20; display: flex; gap: 8px;
+    }
+    #hotbar .slot {
+      width: 52px; height: 52px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      background: rgba(20, 15, 8, .6); border: 1px solid rgba(138, 111, 74, .55);
+      color: #b9a27b; font-size: 22px; user-select: none;
+    }
+    #tip {
+      position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%); z-index: 20;
+      color: #ffe9bd; background: rgba(20, 15, 8, .7); padding: 6px 18px; border-radius: 8px; font-size: 14px;
+      border: 1px solid rgba(138, 111, 74, .5);
+    }
+    #log {
+      position: fixed; left: 14px; bottom: 84px; z-index: 19; width: 300px; max-height: 120px;
+      overflow-y: auto; font-size: 12px; line-height: 1.7; color: #cdb896;
+      -webkit-mask-image: linear-gradient(to top, #000 70%, transparent);
+    }
+    #log .ok { color: #9fd66f; } #log .warn { color: #ffc963; } #log .danger { color: #ff7a6b; }
+
+    /* ---- 結束畫面 ---- */
+    #end {
+      position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      background: rgba(12, 9, 5, .78); color: #f0e3c8; text-align: center;
+    }
+    #end h2 { font-size: 40px; margin: 0; }
+    #end .credits { opacity: .5; font-size: 12px; line-height: 1.8; margin-top: 14px; }
+    #end button {
+      margin-top: 16px; font-size: 16px; padding: 9px 30px; border-radius: 10px;
+      border: 1px solid #8a6f4a; background: #5b4630; color: #ffe9bd; cursor: pointer;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="title-screen">
+    <h1>🐕 Escape from Barkov</h1>
+    <div class="ver">v0.4.0 — Duckov-style rebuild</div>
+    <button id="btn-start">Start Game</button>
+    <button id="btn-howto">How to Play</button>
+  </div>
+
+  <div id="howto" class="hidden">
+    <div class="card">
+      <h3>How to Play</h3>
+      <div><kbd>W A S D</kbd> Move</div>
+      <div><kbd>Mouse</kbd> Aim · <kbd>Left Click</kbd> Shoot</div>
+      <div><kbd>E</kbd> Pick up items · <kbd>1 2 3</kbd> Use hotbar item</div>
+      <div><kbd>F</kbd> Extract at the exit gate · <kbd>M</kbd> Toggle music</div>
+      <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;">Close</button>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <span>❤️ <b id="hp">100</b></span>
+    <span>🔫 <b id="ammo">30</b></span>
+    <span>💰 <b id="loot">0</b></span>
+  </div>
+  <div id="hotbar" class="hidden">
+    <div class="slot">1</div><div class="slot">2</div><div class="slot">3</div>
+  </div>
+  <div id="tip" class="hidden"></div>
+  <div id="log" class="hidden"></div>
+
+  <div id="end" class="hidden">
+    <h2></h2>
+    <p></p>
+    <div class="credits">
+      Duck model by rbreve (CC-BY 4.0) · Corgi model by ofekyovel (CC-BY 4.0)<br />
+      Environment assets by Kenney.nl (CC0)
+    </div>
+    <button id="btn-retry">Play Again</button>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

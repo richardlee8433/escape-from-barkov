@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barkov — Visual Prototype (Duckov-style)</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #2a2118; }
+    #app { width: 100%; height: 100%; }
+    #loading {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #d8c9a8; font: 14px/1.6 system-ui, sans-serif; background: #2a2118; z-index: 10;
+      flex-direction: column; gap: 8px;
+    }
+    #badge {
+      position: fixed; left: 12px; bottom: 10px; color: rgba(255,240,210,.55);
+      font: 11px system-ui, sans-serif; z-index: 5; pointer-events: none;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="loading">載入素材中…</div>
+  <div id="badge">Barkov visual prototype · assets: Kenney (CC0) · duck: rbreve (CC-BY 4.0)</div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+    import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+    import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+
+    const loadingEl = document.getElementById("loading");
+    window.addEventListener("error", (e) => {
+      loadingEl.style.display = "flex";
+      loadingEl.textContent = "Error: " + e.message;
+    });
+
+    // ---------- renderer / scene / camera ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById("app").appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x241c12);
+
+    const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 400);
+    camera.position.set(16, 20, 19);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 1);
+    controls.enableDamping = true;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(25);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(60);
+    controls.minDistance = 18;
+    controls.maxDistance = 55;
+    controls.enablePan = false;
+
+    // ---------- lighting ----------
+    const sun = new THREE.DirectionalLight(0xffdda0, 2.8);
+    sun.position.set(-30, 20, 10);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.camera.left = -55; sun.shadow.camera.right = 55;
+    sun.shadow.camera.top = 55; sun.shadow.camera.bottom = -55;
+    sun.shadow.camera.near = 1; sun.shadow.camera.far = 120;
+    sun.shadow.bias = -0.0004;
+    sun.shadow.normalBias = 0.02;
+    scene.add(sun);
+
+    const hemi = new THREE.HemisphereLight(0xa8bfd6, 0x5a4a30, 0.65);
+    scene.add(hemi);
+
+    // ---------- painted ground texture (grass + dirt paths + ravine) ----------
+    const GROUND = 90; // world units
+    const TEX = 1536;
+    const gCanvas = document.createElement("canvas");
+    gCanvas.width = gCanvas.height = TEX;
+    const g = gCanvas.getContext("2d");
+    const W2T = TEX / GROUND; // world → texel
+    const tx = (x) => (x + GROUND / 2) * W2T;
+    const tz = (z) => (z + GROUND / 2) * W2T;
+
+    // base grass with mottling
+    g.fillStyle = "#77a746";
+    g.fillRect(0, 0, TEX, TEX);
+    for (let i = 0; i < 9000; i++) {
+      const r = 6 + Math.random() * 26;
+      const shades = ["#6d9c3e", "#82b34f", "#71a244", "#8ab858", "#679540"];
+      g.fillStyle = shades[(Math.random() * shades.length) | 0];
+      g.globalAlpha = 0.10 + Math.random() * 0.14;
+      g.beginPath();
+      g.arc(Math.random() * TEX, Math.random() * TEX, r, 0, 7);
+      g.fill();
+    }
+    g.globalAlpha = 1;
+
+    // dirt path painter: splatter circles along a curve for rough organic edges
+    function paintPath(points, widthWorld, colors) {
+      const pts = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        const [ax, az] = points[i], [bx, bz] = points[i + 1];
+        const segLen = Math.hypot(bx - ax, bz - az);
+        const steps = Math.ceil(segLen * 3);
+        for (let s = 0; s < steps; s++) {
+          const t = s / steps;
+          pts.push([ax + (bx - ax) * t, az + (bz - az) * t]);
+        }
+      }
+      for (const [layerW, color, alpha] of colors) {
+        g.fillStyle = color;
+        for (const [x, z] of pts) {
+          for (let k = 0; k < 3; k++) {
+            const jr = (Math.random() - 0.5) * widthWorld * 0.55;
+            const ja = Math.random() * Math.PI * 2;
+            const r = widthWorld * layerW * (0.35 + Math.random() * 0.45) * W2T;
+            g.globalAlpha = alpha * (0.5 + Math.random() * 0.5);
+            g.beginPath();
+            g.arc(tx(x) + Math.cos(ja) * jr * W2T, tz(z) + Math.sin(ja) * jr * W2T, r, 0, 7);
+            g.fill();
+          }
+        }
+      }
+      g.globalAlpha = 1;
+    }
+
+    // main S-path (top-left → center → bottom-right toward bridge)
+    const mainPath = [[-10, -40], [-7, -26], [-1, -14], [1, -4], [0, 4], [4, 12], [9, 20], [11, 30], [12, 44]];
+    // side branch to the crate camp
+    const sidePath = [[0, -2], [-8, 0], [-15, -3], [-22, -8]];
+    const dirtLayers = [
+      [1.15, "#8a6f4a", 0.55],
+      [0.85, "#9c8055", 0.8],
+      [0.5, "#a98c5e", 0.75],
+    ];
+    paintPath(mainPath, 4.5, dirtLayers);
+    paintPath(sidePath, 3.5, dirtLayers);
+
+    // ravine (dark strip the bridge crosses)
+    paintPath([[-45, 34], [-20, 32], [0, 33], [20, 35], [45, 33]], 8, [
+      [1.2, "#5d4a30", 0.7],
+      [0.8, "#463724", 0.9],
+      [0.45, "#332818", 0.9],
+    ]);
+
+    const groundTex = new THREE.CanvasTexture(gCanvas);
+    groundTex.colorSpace = THREE.SRGBColorSpace;
+    groundTex.anisotropy = 8;
+    const groundPix = g.getImageData(0, 0, TEX, TEX).data;
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(GROUND, GROUND),
+      new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1, metalness: 0 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // sample painted ground at world coords
+    function groundColorAt(x, z) {
+      const px = Math.min(TEX - 1, Math.max(0, tx(x) | 0));
+      const pz = Math.min(TEX - 1, Math.max(0, tz(z) | 0));
+      const i = (pz * TEX + px) * 4;
+      return [groundPix[i], groundPix[i + 1], groundPix[i + 2]];
+    }
+    const isGrassAt = (x, z) => {
+      const [r, gg] = groundColorAt(x, z);
+      return gg > r * 1.04;
+    };
+
+    // ---------- instanced grass blades ----------
+    const bladeGeo = new THREE.PlaneGeometry(0.14, 0.6, 1, 2);
+    bladeGeo.translate(0, 0.3, 0);
+    const bladeMat = new THREE.MeshStandardMaterial({
+      side: THREE.DoubleSide, roughness: 1, metalness: 0, color: 0xffffff,
+    });
+    const uTime = { value: 0 };
+    bladeMat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = uTime;
+      sh.vertexShader = "uniform float uTime;\n" + sh.vertexShader.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+         float swayW = pow(max(position.y, 0.0) / 0.6, 1.8);
+         float ph = instanceMatrix[3][0] * 0.55 + instanceMatrix[3][2] * 0.85;
+         transformed.x += sin(uTime * 1.7 + ph) * swayW * 0.06;
+         transformed.z += cos(uTime * 1.3 + ph * 1.3) * swayW * 0.04;`
+      );
+    };
+
+    const MAX_BLADES = 42000;
+    const grassMesh = new THREE.InstancedMesh(bladeGeo, bladeMat, MAX_BLADES);
+    grassMesh.receiveShadow = true;
+    const dummy = new THREE.Object3D();
+    const cTmp = new THREE.Color();
+    let bladeCount = 0;
+    for (let i = 0; i < MAX_BLADES * 2 && bladeCount < MAX_BLADES; i++) {
+      const x = (Math.random() - 0.5) * (GROUND - 6);
+      const z = (Math.random() - 0.5) * (GROUND - 6);
+      if (!isGrassAt(x, z)) continue;
+      dummy.position.set(x, 0, z);
+      dummy.rotation.set((Math.random() - 0.5) * 0.35, Math.random() * Math.PI, (Math.random() - 0.5) * 0.35);
+      const s = 0.7 + Math.random() * 0.8;
+      dummy.scale.set(s, s * (0.8 + Math.random() * 0.6), s);
+      dummy.updateMatrix();
+      grassMesh.setMatrixAt(bladeCount, dummy.matrix);
+      const [r, gg, b] = groundColorAt(x, z);
+      cTmp.setRGB(r / 255, gg / 255, b / 255).convertSRGBToLinear();
+      cTmp.multiplyScalar(1.0 + Math.random() * 0.4);
+      grassMesh.setColorAt(bladeCount, cTmp);
+      bladeCount++;
+    }
+    grassMesh.count = bladeCount;
+    scene.add(grassMesh);
+
+    // ---------- model library ----------
+    const loader = new GLTFLoader();
+    const lib = {};      // name → scene
+    const libSize = {};  // name → bbox size
+    const MODELS = [
+      "tree_pineRoundA", "tree_pineRoundB", "tree_pineRoundC", "tree_pineRoundD",
+      "tree_pineSmallA", "tree_pineSmallB",
+      "stone_largeA", "stone_largeB", "stone_largeC", "stone_largeD",
+      "stone_smallA", "stone_smallC", "stone_smallE", "stone_tallB", "stone_tallD",
+      "fence_simple", "bridge_wood", "bridge_side_wood",
+      "grass_leafs", "plant_bushSmall", "plant_bushLarge",
+      "mushroom_red", "log", "stump_round",
+      "box", "box-large", "box-open", "barrel", "chest",
+      "voxel_duck",
+    ];
+
+    // Kenney's foliage is teal-green; shift it to the warm yellow-green of the reference
+    const foliageGreens = [new THREE.Color(0x77b04a), new THREE.Color(0x649c3d), new THREE.Color(0x86bd58)];
+    function warmifyFoliage(mat) {
+      const c = mat.color;
+      if (c && c.g > c.r && c.b > c.r * 1.15) {
+        const lum = c.r * 0.3 + c.g * 0.6 + c.b * 0.1;
+        const pick = foliageGreens[lum > 0.45 ? 2 : lum > 0.28 ? 0 : 1].clone();
+        mat.color = pick;
+      }
+    }
+
+    function loadGlb(name) {
+      const recolor = /^(tree_|plant_|grass)/.test(name);
+      return new Promise((res, rej) => {
+        loader.load(`assets/models/${name}.glb`, (gltf) => {
+          gltf.scene.traverse((o) => {
+            if (o.isMesh) {
+              o.castShadow = true;
+              o.receiveShadow = true;
+              if (o.material) {
+                o.material.roughness = 1;
+                o.material.metalness = 0;
+                if (recolor) warmifyFoliage(o.material);
+              }
+            }
+          });
+          const box = new THREE.Box3().setFromObject(gltf.scene);
+          lib[name] = gltf.scene;
+          libSize[name] = box.getSize(new THREE.Vector3());
+          res();
+        }, undefined, rej);
+      });
+    }
+
+    // place a model scaled to a target size, bottom on ground
+    // dim: "y" scales by height, "max" by largest dimension (for flat/long models)
+    function spawn(name, x, z, h, ry = Math.random() * Math.PI * 2, dim = "y") {
+      const obj = lib[name].clone(true);
+      const sz = libSize[name];
+      const ref = dim === "max" ? Math.max(sz.x, sz.y, sz.z) : sz.y;
+      const s = h / ref;
+      obj.scale.setScalar(s);
+      const box = new THREE.Box3().setFromObject(obj);
+      obj.position.set(x, -box.min.y, z);
+      obj.rotation.y = ry;
+      scene.add(obj);
+      return obj;
+    }
+
+    // ---------- scene composition ----------
+    function rockRidge(points, density = 2.0) {
+      const bigs = ["stone_largeA", "stone_largeB", "stone_largeC", "stone_largeD", "stone_tallB", "stone_tallD"];
+      const smalls = ["stone_smallA", "stone_smallC", "stone_smallE"];
+      for (let i = 0; i < points.length - 1; i++) {
+        const [ax, az] = points[i], [bx, bz] = points[i + 1];
+        const len = Math.hypot(bx - ax, bz - az);
+        const n = Math.max(1, Math.round(len / density));
+        for (let s = 0; s <= n; s++) {
+          const t = s / n;
+          const x = ax + (bx - ax) * t + (Math.random() - 0.5) * 1.6;
+          const z = az + (bz - az) * t + (Math.random() - 0.5) * 1.6;
+          spawn(bigs[(Math.random() * bigs.length) | 0], x, z, 2.2 + Math.random() * 2.6);
+          if (Math.random() < 0.65)
+            spawn(smalls[(Math.random() * smalls.length) | 0],
+              x + (Math.random() - 0.5) * 3.2, z + (Math.random() - 0.5) * 3.2,
+              0.5 + Math.random() * 0.9);
+        }
+      }
+    }
+
+    function fenceRun(points, h = 1.15) {
+      for (let i = 0; i < points.length - 1; i++) {
+        const [ax, az] = points[i], [bx, bz] = points[i + 1];
+        const len = Math.hypot(bx - ax, bz - az);
+        const segLen = 1.9;
+        const n = Math.floor(len / segLen);
+        const ang = Math.atan2(bx - ax, bz - az);
+        for (let s = 0; s < n; s++) {
+          const t = (s + 0.5) / n;
+          spawn("fence_simple", ax + (bx - ax) * t, az + (bz - az) * t, h, ang + Math.PI / 2);
+        }
+      }
+    }
+
+    function buildScene() {
+      // rocky ridges — echoing the reference composition
+      rockRidge([[-34, -34], [-26, -22], [-28, -8], [-33, 4], [-30, 16], [-24, 24]]);
+      rockRidge([[-18, -42], [-14, -30], [-17, -20]]);
+      rockRidge([[26, -30], [30, -18], [27, -6], [31, 6]]);
+      rockRidge([[18, 16], [24, 22], [30, 30]]);
+      rockRidge([[-24, 30], [-12, 28], [-2, 29]], 2.4); // ravine north bank
+      rockRidge([[16, 38], [26, 40]], 2.4);
+
+      // pine clusters
+      const pines = ["tree_pineRoundA", "tree_pineRoundB", "tree_pineRoundC", "tree_pineRoundD"];
+      const treeSpots = [
+        [10, -8, 7.5], [16, -14, 6.2], [7, -20, 5.4], [-14, 10, 7.0], [-20, 16, 5.6],
+        [14, 4, 6.6], [-8, -24, 6.0], [-24, -14, 5.2], [20, 24, 5.8], [-4, 16, 5.0],
+        [24, -24, 6.4], [-16, -34, 6.8], [4, 24, 4.6],
+        [-7, 7, 6.4], [8, 9, 5.6], [-10, -6, 5.8], [16, 15, 6.8], [-15, 22, 5.2],
+      ];
+      for (const [x, z, h] of treeSpots) {
+        if (!isGrassAt(x, z)) continue;
+        spawn(pines[(Math.random() * pines.length) | 0], x, z, h);
+        if (Math.random() < 0.5)
+          spawn(Math.random() < 0.5 ? "tree_pineSmallA" : "tree_pineSmallB",
+            x + 2 + Math.random() * 2, z + (Math.random() - 0.5) * 4, 2.4 + Math.random() * 1.4);
+      }
+
+      // crate camp at the side-path end
+      spawn("box-large", -21.5, -8.5, 1.5, 0.3);
+      spawn("box", -19.6, -7.6, 1.0, 0.9);
+      spawn("box-open", -21.0, -6.4, 0.95, -0.4);
+      spawn("box", -20.9, -9.9, 1.0, 2.2).position.y += 0.0;
+      spawn("barrel", -18.4, -9.4, 1.25, 0);
+      spawn("chest", -17.5, -6.2, 0.9, 1.1);
+
+      // wooden bridge over the ravine
+      spawn("bridge_wood", 11.5, 33.5, 10, Math.PI / 2, "max");
+
+      // rope fence along the main path (right side), like the reference
+      fenceRun([[5.5, 2], [9.5, 10], [13.5, 19]]);
+      fenceRun([[-4.5, 4], [-0.5, 12]]);
+
+      // scatter details
+      for (let i = 0; i < 60; i++) {
+        const x = (Math.random() - 0.5) * (GROUND - 14);
+        const z = (Math.random() - 0.5) * (GROUND - 14);
+        if (!isGrassAt(x, z)) continue;
+        const pick = Math.random();
+        if (pick < 0.5) spawn("grass_leafs", x, z, 0.5 + Math.random() * 0.4);
+        else if (pick < 0.75) spawn("plant_bushSmall", x, z, 0.7 + Math.random() * 0.6);
+        else if (pick < 0.85) spawn("plant_bushLarge", x, z, 1.1 + Math.random() * 0.7);
+        else if (pick < 0.92) spawn("mushroom_red", x, z, 0.35 + Math.random() * 0.2);
+        else if (pick < 0.97) spawn("log", x, z, 1.6, undefined, "max");
+        else spawn("stump_round", x, z, 0.55);
+      }
+
+      // the star of the show
+      const duck = spawn("voxel_duck", 0.5, 3.5, 2.0, THREE.MathUtils.degToRad(150));
+      duck.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    }
+
+    // ---------- post-processing: bloom + tilt-shift + grade + vignette ----------
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.22;
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.18, 0.5, 0.82);
+    composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+
+    const GradeTiltShift = {
+      uniforms: {
+        tDiffuse: { value: null },
+        resolution: { value: new THREE.Vector2(innerWidth, innerHeight) },
+        uTime: { value: 0 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 resolution;
+        uniform float uTime;
+        varying vec2 vUv;
+
+        float rand(vec2 co) { return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
+
+        void main() {
+          // tilt-shift: sharp band around the focus line, blur toward top/bottom
+          float focus = 0.46;
+          float blurAmt = smoothstep(0.16, 0.50, abs(vUv.y - focus));
+          float maxR = 3.2 * blurAmt;
+          vec2 px = maxR / resolution;
+
+          vec3 c = texture2D(tDiffuse, vUv).rgb * 0.24;
+          c += texture2D(tDiffuse, vUv + vec2( 0.5,  0.8) * px).rgb * 0.095;
+          c += texture2D(tDiffuse, vUv + vec2(-0.7,  0.5) * px).rgb * 0.095;
+          c += texture2D(tDiffuse, vUv + vec2( 0.9, -0.3) * px).rgb * 0.095;
+          c += texture2D(tDiffuse, vUv + vec2(-0.4, -0.9) * px).rgb * 0.095;
+          c += texture2D(tDiffuse, vUv + vec2( 0.2, -0.6) * px).rgb * 0.095;
+          c += texture2D(tDiffuse, vUv + vec2(-0.9, -0.1) * px).rgb * 0.095;
+          c += texture2D(tDiffuse, vUv + vec2( 0.6,  0.4) * px).rgb * 0.095;
+          c += texture2D(tDiffuse, vUv + vec2(-0.2,  0.95) * px).rgb * 0.095;
+
+          // warm grade + gentle saturation lift
+          c *= vec3(1.045, 1.0, 0.93);
+          float l = dot(c, vec3(0.299, 0.587, 0.114));
+          c = mix(vec3(l), c, 1.08);
+          c = pow(c, vec3(1.04));
+
+          // vignette
+          float d = distance(vUv, vec2(0.5, 0.48));
+          c *= 0.70 + 0.30 * smoothstep(0.85, 0.30, d);
+
+          // faint grain
+          c += (rand(vUv * (1.0 + fract(uTime))) - 0.5) * 0.022;
+
+          gl_FragColor = vec4(c, 1.0);
+        }
+      `,
+    };
+    const gradePass = new ShaderPass(GradeTiltShift);
+    composer.addPass(gradePass);
+
+    // ---------- boot ----------
+    Promise.all(MODELS.map(loadGlb)).then(() => {
+      buildScene();
+      loadingEl.style.display = "none";
+      renderer.setAnimationLoop(tick);
+    }).catch((err) => {
+      loadingEl.textContent = "素材載入失敗: " + (err?.message || err);
+    });
+
+    const clock = new THREE.Clock();
+    function tick() {
+      const t = clock.getElapsedTime();
+      uTime.value = t;
+      gradePass.uniforms.uTime.value = t;
+      controls.update();
+      composer.render();
+    }
+
+    addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      composer.setSize(innerWidth, innerHeight);
+      gradePass.uniforms.resolution.value.set(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
