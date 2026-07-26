@@ -34,6 +34,7 @@ class Bullet {
     this.speed = speed;
     this.owner = owner;
     this.traveled = 0;
+    this.spent = false; // 一顆子彈只能結算一次命中
     this.mesh = tmpl.clone(true);
     this.mesh.position.copy(from);
     this.mesh.quaternion.setFromUnitVectors(FORWARD, this.dir);
@@ -48,6 +49,7 @@ export class Combat {
     this.bullets = [];
     this.kills = 0;
     this.time = 0;
+    this.playerCd = 0;
     this.tmplPlayer = buildBulletTemplate(assets);
     this.tmplEnemy = buildBulletTemplate(assets, 0xff4433);
   }
@@ -60,26 +62,71 @@ export class Combat {
 
   firePlayer(player, aimPoint) {
     if (!player.alive || !aimPoint) return;
+    if (this.playerCd > 0) return; // 射速上限,連點滑鼠不能無限傾瀉
     if (player.ammo <= 0) {
       log("Out of ammo!", "danger");
       return;
     }
-    player.ammo--;
-    player.emitStats();
-    const from = player.pos.clone().add(new THREE.Vector3(0, 1.0, 0));
     const dir = aimPoint.clone().sub(player.pos).setY(0);
     if (dir.lengthSq() < 1e-4) return;
-    this.bullets.push(new Bullet(this.scene, this.tmplPlayer, from, dir, B.playerSpeed, "player"));
+    player.ammo--;
+    player.emitStats();
+    this.playerCd = BAL.player.fireCd;
+    const from = player.pos.clone().add(new THREE.Vector3(0, 1.0, 0));
+    this._spawnBullet(this.tmplPlayer, from, dir, B.playerSpeed, "player");
     bus.emit("shot");
   }
 
   fireEnemy(from, dir) {
     if (dir.lengthSq() < 1e-4) return;
-    this.bullets.push(new Bullet(this.scene, this.tmplEnemy, from, dir, B.enemySpeed, "enemy"));
+    this._spawnBullet(this.tmplEnemy, from, dir, B.enemySpeed, "enemy");
+  }
+
+  // 所有子彈都從這裡誕生,發射事件只有這一個來源
+  _spawnBullet(tmpl, from, dir, speed, owner) {
+    const b = new Bullet(this.scene, tmpl, from, dir, speed, owner);
+    this.bullets.push(b);
+    bus.emit("bullet:fired", { owner, x: from.x, z: from.z, dirX: b.dir.x, dirZ: b.dir.z });
+    return b;
+  }
+
+  // 命中的唯一結算點。傷害、死亡、掉落、事件全部由這裡發出,
+  // 視覺與音效只訂閱事件,不自己判定命中,也不自己扣血。
+  _resolveHit(bullet, target, player, enemies) {
+    if (bullet.spent) return;
+    bullet.spent = true;
+
+    const x = bullet.mesh.position.x;
+    const z = bullet.mesh.position.z;
+    // 傷害來向：子彈飛行方向的反向,指回射擊者
+    const fromX = -bullet.dir.x;
+    const fromZ = -bullet.dir.z;
+    const amount = B.damage;
+
+    if (bullet.owner === "player") {
+      target.hp -= amount;
+      const lethal = target.hp <= 0;
+      bus.emit("combat:hit", { targetType: "enemy", x, z, fromX, fromZ, amount, lethal });
+      if (lethal) {
+        const ex = target.pos.x, ez = target.pos.z;
+        target.dispose(this.scene);
+        const i = enemies.indexOf(target);
+        if (i >= 0) enemies.splice(i, 1);
+        this.kills++;
+        bus.emit("enemy:died", { enemy: target, x: ex, z: ez });
+      } else {
+        target.knockback(bullet.mesh.position, this.collision);
+        bus.emit("enemy:hurt", { enemy: target, x, z, fromX, fromZ, amount });
+      }
+    } else {
+      bus.emit("combat:hit", { targetType: "player", x, z, fromX, fromZ, amount, lethal: player.hp <= amount });
+      player.takeDamage(amount, fromX, fromZ);
+    }
   }
 
   update(dt, enemies, player) {
     this.time += dt;
+    this.playerCd -= dt;
 
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i];
@@ -89,40 +136,26 @@ export class Combat {
       const bx = b.mesh.position.x;
       const bz = b.mesh.position.z;
 
-      let dead = b.traveled > B.maxDist || this.collision.hitStatic(bx, bz, B.radius);
-
-      if (!dead && b.owner === "player") {
+      if (b.traveled > B.maxDist || this.collision.hitStatic(bx, bz, B.radius)) {
+        b.spent = true;
+      } else if (b.owner === "player") {
         for (let j = enemies.length - 1; j >= 0; j--) {
           const en = enemies[j];
           const dx = bx - en.pos.x;
           const dz = bz - en.pos.z;
-          if (Math.hypot(dx, dz) < en.hitR + B.radius) {
-            en.hp -= B.damage;
-            if (en.hp > 0) {
-              en.knockback(b.mesh.position, this.collision);
-              bus.emit("enemy:hurt");
-            } else {
-              en.dispose(this.scene);
-              enemies.splice(j, 1);
-              this.kills++;
-              player.addLoot();
-              bus.emit("enemy:died", { x: en.pos.x, z: en.pos.z });
-              log("Enemy down, Loot +1", "ok");
-            }
-            dead = true;
+          if (dx * dx + dz * dz < (en.hitR + B.radius) ** 2) {
+            this._resolveHit(b, en, player, enemies);
             break;
           }
         }
-      } else if (!dead && b.owner === "enemy" && player.alive) {
+      } else if (player.alive) {
         const dx = bx - player.pos.x;
         const dz = bz - player.pos.z;
-        if (Math.hypot(dx, dz) < player.radius + B.radius * 0.5 + 0.3) {
-          player.takeDamage(B.damage);
-          dead = true;
-        }
+        const reach = player.radius + B.radius * 0.5 + 0.3;
+        if (dx * dx + dz * dz < reach * reach) this._resolveHit(b, null, player, enemies);
       }
 
-      if (dead) {
+      if (b.spent) {
         this.scene.remove(b.mesh);
         this.bullets.splice(i, 1);
       }

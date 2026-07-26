@@ -12,6 +12,16 @@ export class HUD {
     this.tipEl = document.getElementById("tip");
     this.logEl = document.getElementById("log");
     this.slots = Array.from(document.querySelectorAll("#hotbar .slot"));
+    this.dirsEl = document.getElementById("dmg-dirs");
+    this.hurtEl = document.getElementById("hurt-flash");
+    this.extractEl = document.getElementById("extract-flash");
+    this.camYaw = 0;
+
+    bus.on("player:hurt", ({ fromX, fromZ }) => {
+      this.flash(this.hurtEl);
+      this.showDamageDir(fromX, fromZ);
+    });
+    bus.on("victory", () => this.flash(this.extractEl));
 
     bus.on("player:stats", ({ hp, ammo, loot }) => {
       this.hpEl.textContent = Math.round(hp);
@@ -27,6 +37,8 @@ export class HUD {
       });
     });
 
+    bus.on("enemy:died", () => bus.emit("log", { msg: "Enemy down, Loot +1", level: "ok" }));
+
     bus.on("tip:show", ({ msg }) => {
       this.tipEl.textContent = msg;
       this.tipEl.classList.remove("hidden");
@@ -40,6 +52,30 @@ export class HUD {
       this.logEl.appendChild(d);
       this.logEl.scrollTop = this.logEl.scrollHeight;
     });
+  }
+
+  // 重新觸發 CSS 動畫：先移除 class 並強制回流，否則連續受擊不會重播
+  flash(el) {
+    el.classList.remove("on");
+    void el.offsetWidth;
+    el.classList.add("on");
+  }
+
+  // 把世界座標的來向轉成螢幕角度。相機是固定俯視角，
+  // 螢幕「上」對應世界的 (-sin yaw, -cos yaw)，右邊是它逆時針轉 90°。
+  showDamageDir(fromX, fromZ) {
+    if (!fromX && !fromZ) return;
+    const s = Math.sin(this.camYaw), c = Math.cos(this.camYaw);
+    const right = fromX * c - fromZ * s;
+    const up = -fromX * s - fromZ * c;
+    const deg = (Math.atan2(right, up) * 180) / Math.PI;
+
+    if (this.dirsEl.childElementCount >= 4) this.dirsEl.firstElementChild.remove();
+    const arc = document.createElement("div");
+    arc.className = "arc";
+    arc.style.transform = `rotate(${deg}deg)`;
+    arc.addEventListener("animationend", () => arc.remove(), { once: true });
+    this.dirsEl.appendChild(arc);
   }
 
   show() {

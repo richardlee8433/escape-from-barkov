@@ -15,6 +15,9 @@ export class Player {
     this.root.rotation.y = yaw;
     this.root.add(assets.instantiate("corgi", BAL.player.height, { center: true }));
     scene.add(this.root);
+
+    // Loot 跟著「敵人死亡」這個事件走,而不是由 Combat 直接呼叫進來
+    bus.on("enemy:died", () => this.addLoot());
   }
 
   get pos() {
@@ -33,8 +36,8 @@ export class Player {
       this.pos.copy(next);
     }
 
-    // 貼地(平地 0,橋上沿拱形墊高)
-    this.pos.y = collision.heightAt(this.pos.x, this.pos.z);
+    // 單一遊戲平面：橋是視覺物件,踩上去也不會改變高度
+    this.pos.y = BAL.world.gameplayY;
 
     // 面向準心
     if (rig.aimPoint) {
@@ -48,15 +51,16 @@ export class Player {
     }
   }
 
-  takeDamage(v) {
+  // fromX/fromZ：傷害來向（指回射擊者），給方向指示器用
+  takeDamage(v, fromX = 0, fromZ = 0) {
     if (!this.alive) return;
     this.hp = Math.max(0, this.hp - v);
     this.emitStats();
     if (this.hp <= 0) {
       this.alive = false;
-      bus.emit("player:died");
+      bus.emit("player:died", { x: this.pos.x, z: this.pos.z });
     } else {
-      bus.emit("player:hurt");
+      bus.emit("player:hurt", { amount: v, fromX, fromZ, hp: this.hp });
     }
   }
 
@@ -74,6 +78,7 @@ export class Player {
   addLoot() {
     this.loot += 1;
     this.emitStats();
+    bus.emit("loot:gained", { total: this.loot });
   }
 
   emitStats() {

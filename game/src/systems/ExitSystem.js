@@ -27,7 +27,7 @@ export class ExitSystem {
     if (near && this.input.isDown("f")) {
       this.done = true;
       bus.emit("tip:hide");
-      bus.emit("victory");
+      bus.emit("victory", { x: this.exitPos.x, z: this.exitPos.z });
     }
   }
 }

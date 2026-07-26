@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Barkov tests</title>
+  <style>
+    body { background: #14100a; color: #e8dcc0; font: 13px/1.7 ui-monospace, Menlo, Consolas, monospace; padding: 24px; }
+    h2 { margin: 0 0 18px; font-size: 18px; }
+    h3 { margin: 20px 0 6px; color: #ffc963; font-size: 13px; letter-spacing: .5px; }
+    .ok { color: #7ddba0; }
+    .fail { color: #ff8a7a; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="out"></div>
+  <script type="module">
+    import { bus } from "../src/core/EventBus.js";
+    import { report } from "./harness.js";
+    import { run as runAi } from "./ai.test.js";
+    import { run as runLevel } from "./level.test.js";
+    import { run as runCamera } from "./camera.test.js";
+    import { run as runCombat, load as loadCombat } from "./combat.test.js";
+    import { run as runVfx } from "./vfx.test.js";
+
+    window.__bus = bus;
+    runAi();
+    runLevel();
+    runCamera();
+    await loadCombat();
+    runCombat();
+    runVfx();
+    report();
+  </script>
+</body>
+</html>

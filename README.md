@@ -9,9 +9,10 @@ npm install
 npx serve . -l 5173
 ```
 
-Then open **http://localhost:5173/game/** in your browser.
+Then open **http://localhost:5173/** in your browser — the root redirects to the current version.
 
-> The legacy prototype (v0.3.5, single-file) still lives at the repo root and runs at `http://localhost:5173/`. The visual style prototype is at `/proto/`.
+> The legacy prototype (v0.3.5, single-file) is at `/v0.3.5.html`. The visual style prototype is at `/proto/`.
+> Deterministic gameplay tests run in the browser at `/game/tests/run.html`.
 
 ## Controls
 
@@ -43,7 +44,8 @@ game/            v0.4 — the current game (modular rebuild)
     audio/       Synthesized SFX + BGM
     ui/          HUD (event-driven), screens
 proto/           Duckov-style visual prototype + shared 3D assets
-index.html       Legacy v0.3.5 single-file version (kept for reference)
+index.html       Redirects to game/ (the current version)
+v0.3.5.html      Legacy v0.3.5 single-file version (kept for reference)
 ```
 
 ### Architecture notes

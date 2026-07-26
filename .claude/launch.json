@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", ".", "-l", "5173"],
       "port": 5173
+    },
+    {
+      "name": "dist",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "dist", "-l", "5199"],
+      "port": 5199
     }
   ]
 }

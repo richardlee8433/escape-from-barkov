@@ -3,12 +3,15 @@
 export const VERSION = "v0.4.0";
 
 export const BAL = {
-  world: { size: 170 },
+  // gameplayY：唯一的遊戲平面。所有移動、生成、掉落、出口都貼在這個高度，
+  // 橋、岩石等視覺高度一律不得改變它。
+  world: { size: 170, gameplayY: 0, edgeMargin: 7 },
 
   player: {
     maxHp: 100,
     startAmmo: 30,
     speed: 9,          // 移動速度（單位/秒）
+    fireCd: 0.18,      // 射速上限（秒/發）——沒有它連點滑鼠就能無限傾瀉
     radius: 0.5,       // 碰撞圓半徑
     height: 1.6,       // 柯基模型目標高度
   },
@@ -18,10 +21,14 @@ export const BAL = {
     hp: 30,
     baseSpeed: 5,
     height: 2.0,           // 鴨子模型目標高度
-    detectDist: 22,        // 可以「看到」玩家的最大距離
+    detectDist: 20,        // 可以「看到」玩家的最大距離
     fovDeg: 70,            // 視野角（左右各 35°）
     loseSightTime: 2.0,    // 追擊中失去視線多久轉為搜尋
-    fireRange: 14,         // 開火距離
+    // 相機 pitch 40°/距離 30/FOV 38° → 畫面下緣只到玩家前方約 11.4 單位。
+    // 射程壓在 10 以內,敵人開火時一定在畫面上,不會有「螢幕外挨槍」。
+    fireRange: 10,         // 開火距離
+    windupTime: 0.5,       // 舉槍前搖（給玩家反應時間的預告）
+    aimTolerance: 0.35,    // 面向誤差在此之內才肯舉槍（弧度,約 20°）
     desiredDist: 3.5,      // 追擊時與玩家保持的距離
     fireCd: 1.4,           // 基礎射擊冷卻（會被難度縮短）
     knockback: 1.2,        // 中彈退後距離

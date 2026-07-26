@@ -6,17 +6,21 @@ const PITCH = THREE.MathUtils.degToRad(40);
 const YAW = THREE.MathUtils.degToRad(40);
 const DIST = 30;
 
+// 相機角度是固定的，所以「相機在目標的哪個方向」是常數。
+// 世界裡的看板要面向玩家，就朝這個方向擺，不必每幀 billboard。
+const FLAT = DIST * Math.cos(PITCH);
+export const CAMERA_OFFSET = new THREE.Vector3(
+  FLAT * Math.sin(YAW),
+  DIST * Math.sin(PITCH),
+  FLAT * Math.cos(YAW)
+);
+
 export class CameraRig {
   constructor(camera, scene) {
     this.camera = camera;
     this.yaw = YAW;
 
-    const flat = DIST * Math.cos(PITCH);
-    this.offset = new THREE.Vector3(
-      flat * Math.sin(YAW),
-      DIST * Math.sin(PITCH),
-      flat * Math.cos(YAW)
-    );
+    this.offset = CAMERA_OFFSET.clone();
 
     this.aimPoint = null;
     this._ray = new THREE.Raycaster();
@@ -32,6 +36,67 @@ export class CameraRig {
     this.crosshair.renderOrder = 999;
     this.crosshair.visible = false;
     scene.add(this.crosshair);
+
+    this.occluders = [];
+    this._faded = new Set();
+  }
+
+  setOccluders(list) {
+    this.occluders = list;
+  }
+
+  // 淡出擋在相機與「重要目標」（玩家、活著的敵人）之間的景物。
+  //
+  // 相機角度固定，所以不需要 raycast：把遮蔽體當成 2D 圓，
+  // 測它有沒有切到相機→目標的線段，再比對高度確認它真的擋得住。
+  // 只淡出當下真的擋路的那幾個實例，不是整批同型物件。
+  updateOcclusion(targets) {
+    const cam = this.camera.position;
+    const hit = new Set();
+
+    for (const t of targets) {
+      const vx = t.x - cam.x;
+      const vz = t.z - cam.z;
+      const len2 = vx * vx + vz * vz;
+      if (len2 < 1e-6) continue;
+      for (const o of this.occluders) {
+        if (hit.has(o)) continue;
+        // k 夾在線段內而不是直接排除：玩家正站在樹冠底下時最近點就是玩家自己，
+        // 這種「頭頂被蓋住」的情況一樣要淡出。
+        let k = ((o.x - cam.x) * vx + (o.z - cam.z) * vz) / len2;
+        k = k < 0 ? 0 : k > 1 ? 1 : k;
+        const dx = o.x - cam.x - vx * k;
+        const dz = o.z - cam.z - vz * k;
+        const d2 = dx * dx + dz * dz;
+        if (d2 > o.r * o.r) continue;
+        // 視線一路往下降，所以要在物件「靠玩家那一側的邊緣」比高度，
+        // 而不是在圓心——在圓心比會漏掉那些只擋住視線末段的矮石頭。
+        const far = Math.min(1, k + Math.sqrt(o.r * o.r - d2) / Math.sqrt(len2));
+        if (o.top > cam.y + (t.y + 1.2 - cam.y) * far) hit.add(o);
+      }
+    }
+
+    for (const o of this._faded) if (!hit.has(o)) this._setFaded(o, false);
+    for (const o of hit) if (!this._faded.has(o)) this._setFaded(o, true);
+    this._faded = hit;
+  }
+
+  // 同型模型的實例共用同一份 material，直接改會讓整張地圖的樹一起變透明。
+  // 第一次淡出時替該實例複製一份專屬材質，之後在兩份之間切換。
+  _setFaded(o, faded) {
+    o.holder.traverse((m) => {
+      if (!m.isMesh) return;
+      if (!m.userData.solidMat) {
+        m.userData.solidMat = m.material;
+        const ghost = m.material.clone();
+        ghost.transparent = true;
+        ghost.opacity = 0.22;
+        ghost.depthWrite = false;
+        m.userData.ghostMat = ghost;
+      }
+      m.material = faded ? m.userData.ghostMat : m.userData.solidMat;
+      m.castShadow = !faded; // 淡出了還投實心影子會露餡
+    });
   }
 
   snapTo(pos) {

@@ -5,10 +5,9 @@ import { EnemyBrain } from "../ai/EnemyBrain.js";
 const E = BAL.enemy;
 
 export class Enemy {
-  constructor(scene, assets, x, z) {
+  constructor(scene, assets, collision, x, z) {
     this.hp = E.hp;
-    this.fireCd = 0;
-    this.brain = new EnemyBrain(this);
+    this.brain = new EnemyBrain(this, collision);
 
     this.root = new THREE.Group();
     this.root.position.set(x, 0, z);
@@ -39,12 +38,11 @@ export class Enemy {
       this.root.rotation.y += diff * Math.min(1, dt * 8);
     }
 
-    this.fireCd -= dt;
-    if (intent.fire && this.fireCd <= 0) {
+    // 開火時機完全由 brain 決定（含冷卻與前搖),這裡只負責執行
+    if (intent.fire) {
       const from = this.pos.clone().add(new THREE.Vector3(0, 1.0, 0));
       const dir = playerPos.clone().sub(this.pos).setY(0);
       combat.fireEnemy(from, dir);
-      this.fireCd = E.fireCd / (0.7 + 0.5 * difficulty) + Math.random() * 0.3;
     }
   }
 

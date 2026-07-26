@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { BAL } from "../config/balance.js";
 import { buildGround, PATH, SIDE_PATH, RAVINE, BRIDGE_SPOT } from "./GroundPaint.js";
 import { GrassField } from "./Grass.js";
+import { CAMERA_OFFSET } from "../render/CameraRig.js";
 
 // 把整張地圖搭出來：光、地面、草、石牆、樹、營地、橋、出口。
 // 需要擋路的東西都跟 collision 註冊圓形碰撞體。
@@ -43,6 +44,26 @@ export function buildWorld(scene, assets, collision) {
     return holder;
   }
 
+  // 量出物件的實際底面積,取內接半徑並留 5% 寬容,讓碰撞貼合視覺
+  const _box = new THREE.Box3();
+  const _size = new THREE.Vector3();
+  function footprintRadius(holder) {
+    holder.updateMatrixWorld(true);
+    _box.setFromObject(holder).getSize(_size);
+    return Math.min(_size.x, _size.z) * 0.5 * 0.95;
+  }
+
+  // 夠高、可能擋住玩家或敵人的物件登記成遮蔽體,交給相機做淡出。
+  // 半徑量「視覺外接圓」而不是碰撞半徑——碰撞圓通常比模型窄(樹幹 vs 樹冠),
+  // 拿它當遮蔽範圍會漏掉一堆實際上真的擋住畫面的樹冠與石頭邊緣。
+  // top 記世界座標的頂端高度,相機才能判斷它是否真的切到視線。
+  const occluders = [];
+  function addOccluder(holder, x, z) {
+    holder.updateMatrixWorld(true);
+    _box.setFromObject(holder).getSize(_size);
+    occluders.push({ holder, x, z, r: Math.max(_size.x, _size.z) * 0.55, top: _box.max.y });
+  }
+
   // ---------- 石牆 ----------
   const BIG_STONES = ["stone_largeA", "stone_largeB", "stone_largeC", "stone_largeD", "stone_tallB", "stone_tallD"];
   const SMALL_STONES = ["stone_smallA", "stone_smallC", "stone_smallE"];
@@ -62,7 +83,7 @@ export function buildWorld(scene, assets, collision) {
         const clear = [[0, 0], [0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]
           .every(([ox, oz]) => ground.isGrassAt(x + ox * fp, z + oz * fp));
         if (!clear) continue;
-        put(BIG_STONES[(Math.random() * BIG_STONES.length) | 0], x, z, fp, undefined, { dim: "max" });
+        addOccluder(put(BIG_STONES[(Math.random() * BIG_STONES.length) | 0], x, z, fp, undefined, { dim: "max" }), x, z);
         collision.addStatic(x, z, fp * 0.42);
         if (Math.random() < 0.6) {
           const sx2 = x + (Math.random() - 0.5) * 3;
@@ -104,13 +125,14 @@ export function buildWorld(scene, assets, collision) {
   }
   for (const [x, z] of treePts) {
     const h = 4.6 + Math.random() * 3.0;
-    put(PINES[(Math.random() * PINES.length) | 0], x, z, h);
+    addOccluder(put(PINES[(Math.random() * PINES.length) | 0], x, z, h), x, z);
     collision.addStatic(x, z, 0.55);
     if (Math.random() < 0.4) {
       const tx2 = x + 2 + Math.random() * 2;
       const tz2 = z + (Math.random() - 0.5) * 4;
       if (ground.isGrassAt(tx2, tz2)) {
-        put(Math.random() < 0.5 ? "tree_pineSmallA" : "tree_pineSmallB", tx2, tz2, 2.2 + Math.random() * 1.2);
+        const th = 2.2 + Math.random() * 1.2;
+        addOccluder(put(Math.random() < 0.5 ? "tree_pineSmallA" : "tree_pineSmallB", tx2, tz2, th), tx2, tz2);
         collision.addStatic(tx2, tz2, 0.35);
       }
     }
@@ -154,45 +176,39 @@ export function buildWorld(scene, assets, collision) {
     // bridge_wood 的欄杆沿「模型 x 軸」(由幾何分析確認),要把模型 x 轉到路的方向
     const ang = Math.atan2(dirTo[0] - x, dirTo[1] - z) - Math.PI / 2;
     const bridge = put("bridge_wood", x, z, 10, ang, { dim: "max" });
-    bridge.children[0].scale.y *= 0.3; // 壓扁拱形
-    bridge.children[0].scale.z *= 0.5; // 模型是正方形,收窄成 10x5 的橋
+    const deckModel = bridge.children[0];
+    deckModel.scale.z *= 0.5; // 模型是正方形,收窄成 10x5 的橋
 
     // 橋的方向向量(目前是 +x,寫成通式)
     const L = Math.hypot(dirTo[0] - x, dirTo[1] - z);
     const ux = (dirTo[0] - x) / L, uz = (dirTo[1] - z) / L;
 
-    // 用 raycast 沿橋的中心線實測橋板頂面高度,建查詢表——
-    // 不對拱形做任何假設,角色的腳永遠貼著真實橋面
-    const SAMPLES = 32;
+    // 橋是純視覺物件：raycast 量出橋板頂面,再把整座橋沉下去,
+    // 讓板面貼齊遊戲平面。玩家走過去時 y 完全不變,
+    // 但欄杆仍高出地面,視覺上還是一座橋。
     bridge.updateMatrixWorld(true);
     const ray = new THREE.Raycaster();
     const down = new THREE.Vector3(0, -1, 0);
-    const deck = [];
-    for (let i = 0; i <= SAMPLES; i++) {
-      const along = -5 + (10 * i) / SAMPLES;
+    let deckTop = 0;
+    for (let i = 0; i <= 16; i++) {
+      const along = -4.5 + (9 * i) / 16;
       ray.set(new THREE.Vector3(x + ux * along, 20, z + uz * along), down);
       const hit = ray.intersectObject(bridge, true)[0];
-      deck.push(hit ? Math.max(0, hit.point.y) : 0);
+      if (hit) deckTop = Math.max(deckTop, hit.point.y);
     }
+    bridge.position.y = BAL.world.gameplayY + 0.05 - deckTop;
 
-    collision.heightAt = (px, pz) => {
-      const dx = px - x, dz = pz - z;
-      const along = dx * ux + dz * uz;
-      const across = -dx * uz + dz * ux;
-      if (Math.abs(along) > 5 || Math.abs(across) > 2.6) return 0;
-      const f = ((along + 5) / 10) * SAMPLES;
-      const i0 = Math.floor(f), i1 = Math.min(SAMPLES, i0 + 1);
-      return deck[i0] + (deck[i1] - deck[i0]) * (f - i0);
-    };
-
-    // 橋兩側欄杆碰撞:走在橋上不會從側面掉進溝壑(擋人不擋子彈)
+    // 橋兩側欄杆碰撞:走在橋上不會從側面掉進溝壑(擋人不擋子彈)。
+    // 欄杆拉到 ±2.4、半徑收到 0.45,中間留出約 2.9 寬的通道——
+    // 這是通往 EXIT 的唯一路線,窄到得瞄準才過得去就太難受了。
     for (let a = -4.2; a <= 4.2; a += 1.2) {
-      for (const side of [-2.15, 2.15]) {
-        collision.addStatic(x + ux * a - uz * side, z + uz * a + ux * side, 0.6, { blocksBullets: false });
+      for (const side of [-2.4, 2.4]) {
+        collision.addStatic(x + ux * a - uz * side, z + uz * a + ux * side, 0.45, { blocksBullets: false });
       }
     }
 
-    // 溝壑不可通行,只留橋這個開口(擋移動、不擋子彈)
+    // 溝壑不可通行,只留橋這個開口(擋移動、不擋子彈)。
+    // 開口半徑要大於溝壑圓半徑,否則溝壑會反過來卡住橋口。
     for (let i = 0; i < RAVINE.length - 1; i++) {
       const [ax, az] = RAVINE[i], [bx, bz] = RAVINE[i + 1];
       const len = Math.hypot(bx - ax, bz - az);
@@ -201,7 +217,7 @@ export function buildWorld(scene, assets, collision) {
         const t = s / n;
         const cx = ax + (bx - ax) * t;
         const cz = az + (bz - az) * t;
-        if (Math.hypot(cx - x, cz - z) < 2.6) continue; // 橋面開口(對齊橋寬)
+        if (Math.hypot(cx - x, cz - z) < 4.5) continue; // 橋面開口
         collision.addStatic(cx, cz, 2.2, { blocksBullets: false });
       }
     }
@@ -214,8 +230,12 @@ export function buildWorld(scene, assets, collision) {
       ["box", 0.6, -1.4, 1.0], ["barrel", 3.1, -0.9, 1.25], ["chest", 4.0, 2.3, 0.9],
     ];
     for (const [name, dx, dz, h] of props) {
-      put(name, cx + dx, cz + dz, h);
-      collision.addStatic(cx + dx, cz + dz, h * 0.65);
+      const holder = put(name, cx + dx, cz + dz, h);
+      // 碰撞半徑取「實際底面積」而不是高度——舊版用 h*0.65,
+      // 高的木箱會撐出一圈看不見的牆,矮的又會被穿模。
+      const r = footprintRadius(holder);
+      collision.addStatic(cx + dx, cz + dz, r);
+      addOccluder(holder, cx + dx, cz + dz);
     }
   }
   camp(-28, 18);  // 支線盡頭
@@ -261,7 +281,9 @@ export function buildWorld(scene, assets, collision) {
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true })
   );
   label.position.set(ex, 4, ez);
-  label.lookAt(new THREE.Vector3(0, 4, 0));
+  // 面向相機所在的方向。舊版是 lookAt(場景中心)，相機在反側，
+  // 單面材質從背面看等於完全不存在——EXIT 招牌在遊戲中根本看不到。
+  label.lookAt(label.position.clone().add(CAMERA_OFFSET));
   scene.add(label);
 
   // 出口地面光圈
@@ -280,6 +302,7 @@ export function buildWorld(scene, assets, collision) {
   return {
     followSun,
     grass,
+    occluders,
     isGrassAt: ground.isGrassAt,
     playerStart,
     startYaw,

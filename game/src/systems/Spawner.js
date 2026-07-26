@@ -42,7 +42,7 @@ export class Spawner {
         if (!this.collision.isFree(x, z, 1.2)) continue;
         ok = true;
       }
-      this.enemies.push(new Enemy(this.scene, this.assets, x, z));
+      this.enemies.push(new Enemy(this.scene, this.assets, this.collision, x, z));
     }
     log(`Enemies spawned x${n} (spread across the map)`, "warn");
   }
@@ -81,8 +81,7 @@ export class Spawner {
       this.collision.pushAway(player.pos, this.enemies[i], E.playerPushDist);
       // 推擠完解一次靜態碰撞,避免被擠進石頭/樹裡
       this.collision.resolveCircle(this.enemies[i].pos, this.enemies[i].hitR * 0.8);
-      // 貼地(橋上沿拱形墊高)
-      this.enemies[i].pos.y = this.collision.heightAt(this.enemies[i].pos.x, this.enemies[i].pos.z);
+      this.enemies[i].pos.y = BAL.world.gameplayY;
     }
   }
 

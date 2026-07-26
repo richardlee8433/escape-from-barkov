@@ -66,6 +66,40 @@
     }
     #log .ok { color: #9fd66f; } #log .warn { color: #ffc963; } #log .danger { color: #ff7a6b; }
 
+    /* ---- 受擊回饋 ---- */
+    /* 傷害方向：一圈容器旋轉到來向，子元素是頂端的一道弧光 */
+    #dmg-dirs { position: fixed; inset: 0; z-index: 21; pointer-events: none; }
+    #dmg-dirs .arc {
+      position: absolute; left: 50%; top: 50%; width: 0; height: 0;
+      animation: dmgfade .9s ease-out forwards;
+    }
+    #dmg-dirs .arc::before {
+      content: ""; position: absolute; left: -70px; top: -190px; width: 140px; height: 46px;
+      border-radius: 140px 140px 0 0;
+      background: radial-gradient(ellipse at 50% 100%, rgba(255,70,50,.85), rgba(255,70,50,0) 72%);
+    }
+    @keyframes dmgfade { from { opacity: 1; } to { opacity: 0; } }
+
+    /* 受擊全螢幕暗紅暈 */
+    #hurt-flash {
+      position: fixed; inset: 0; z-index: 20; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 190px 60px rgba(190, 25, 15, .85);
+    }
+    #hurt-flash.on { animation: hurtpulse .45s ease-out; }
+    @keyframes hurtpulse { from { opacity: 1; } to { opacity: 0; } }
+
+    /* 撤離成功的一道白光 */
+    #extract-flash {
+      position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0;
+      background: radial-gradient(ellipse at 50% 50%, rgba(125,255,216,.9), rgba(125,255,216,0) 70%);
+    }
+    #extract-flash.on { animation: extractpulse 1s ease-out; }
+    @keyframes extractpulse { from { opacity: .95; } to { opacity: 0; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      #dmg-dirs .arc, #hurt-flash.on, #extract-flash.on { animation-duration: .01s; }
+    }
+
     /* ---- 結束畫面 ---- */
     #end {
       position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
@@ -119,6 +153,9 @@
   </div>
   <div id="tip" class="hidden"></div>
   <div id="log" class="hidden"></div>
+  <div id="hurt-flash"></div>
+  <div id="extract-flash"></div>
+  <div id="dmg-dirs"></div>
 
   <div id="end" class="hidden">
     <h2></h2>
