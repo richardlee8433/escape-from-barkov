@@ -12,3 +12,6 @@ proto/assets/blaster-kit/
 # OS junk
 Thumbs.db
 .DS_Store
+
+# Python bytecode (tools/blender)
+__pycache__/

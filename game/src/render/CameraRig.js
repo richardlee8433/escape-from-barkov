@@ -15,6 +15,38 @@ export const CAMERA_OFFSET = new THREE.Vector3(
   FLAT * Math.cos(YAW)
 );
 
+// 方正的建築(農舍)不適合當成圓:長邊轉了角度之後,外接圓大到
+// 玩家站在門口也會被判定「被擋住」。改用定向包圍盒(OBB)做精確的線段測試:
+// 把相機→目標頭頂的線段轉進建築的本地座標,再做 slab 測試。
+// o: { x, z, ry, hx, hz, top },本地座標 x∈[-hx,hx]、y∈[0,top]、z∈[-hz,hz]
+export function segmentHitsObb(cam, target, o) {
+  const c = Math.cos(o.ry), s = Math.sin(o.ry);
+  const toLocal = (px, pz) => {
+    const dx = px - o.x, dz = pz - o.z;
+    return [dx * c - dz * s, dx * s + dz * c];
+  };
+  const [ax, az] = toLocal(cam.x, cam.z);
+  const [bx, bz] = toLocal(target.x, target.z);
+  const a = [ax, cam.y, az];
+  const d = [bx - ax, target.y + 1.2 - cam.y, bz - az];
+  const lo = [-o.hx, 0, -o.hz];
+  const hi = [o.hx, o.top, o.hz];
+  let t0 = 0, t1 = 1;
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(d[i]) < 1e-9) {
+      if (a[i] < lo[i] || a[i] > hi[i]) return false;
+      continue;
+    }
+    let ta = (lo[i] - a[i]) / d[i];
+    let tb = (hi[i] - a[i]) / d[i];
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
 export class CameraRig {
   constructor(camera, scene) {
     this.camera = camera;
@@ -61,6 +93,10 @@ export class CameraRig {
       if (len2 < 1e-6) continue;
       for (const o of this.occluders) {
         if (hit.has(o)) continue;
+        if (o.obb) {
+          if (segmentHitsObb(cam, t, o)) hit.add(o);
+          continue;
+        }
         // k 夾在線段內而不是直接排除：玩家正站在樹冠底下時最近點就是玩家自己，
         // 這種「頭頂被蓋住」的情況一樣要淡出。
         let k = ((o.x - cam.x) * vx + (o.z - cam.z) * vz) / len2;

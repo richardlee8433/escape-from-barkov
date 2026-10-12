@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { CameraRig } from "../src/render/CameraRig.js";
+import { CameraRig, segmentHitsObb } from "../src/render/CameraRig.js";
 import { suite, check, eq } from "./harness.js";
 
 // 造一個帶兩個 mesh 的假遮蔽體，兩個 mesh 共用同一份材質——
@@ -127,6 +127,43 @@ export function run() {
     rig.updateOcclusion([new THREE.Vector3(0, 0, 0)]);
     return eq(isFaded(o), true);
   });
+
+  suite("建築遮蔽(定向包圍盒)");
+
+  // 一棟 10 x 6.6、高 8 的房子,長邊轉了 0.35 弧度——跟遊戲裡的農舍一樣
+  const house = (x, z, ry = 0.35) => ({ x, z, ry, hx: 5, hz: 3.3, top: 8, obb: true });
+
+  check("房子擋在相機與玩家之間時淡出", () => {
+    // 相機在 +z 側;房子在玩家與相機中間
+    return eq(segmentHitsObb(CAM, new THREE.Vector3(0, 0, 0), house(0, 5)), true);
+  });
+
+  check("玩家站在門口(房子在玩家身後)不淡出", () => {
+    // 圓形測試會誤判:外接圓半徑約 6.5,玩家離房子中心只有 5
+    return eq(segmentHitsObb(CAM, new THREE.Vector3(0, 0, 0), house(0, -5)), false);
+  });
+
+  check("玩家站在房子側邊不淡出", () => {
+    return eq(segmentHitsObb(CAM, new THREE.Vector3(0, 0, 0), house(-7.5, -1)), false);
+  });
+
+  check("視線從屋頂上方越過時不淡出", () => {
+    // 房子很遠、很矮:視線在那裡還很高
+    const low = { x: 0, z: 17, ry: 0, hx: 3, hz: 2, top: 3, obb: true };
+    return eq(segmentHitsObb(CAM, new THREE.Vector3(0, 0, 0), low), false);
+  });
+
+  check("updateOcclusion 對 OBB 遮蔽體一樣切換材質", () => {
+    const rig = makeRig();
+    const o = { ...fakeOccluder(0, 5, 0, 8), ...house(0, 5) };
+    rig.setOccluders([o]);
+    rig.updateOcclusion([new THREE.Vector3(0, 0, 0)]);
+    if (!isFaded(o)) return "沒有淡出";
+    rig.updateOcclusion([new THREE.Vector3(20, 0, 0)]); // 玩家走到旁邊
+    return eq(isFaded(o), false);
+  });
+
+  suite("相機遮蔽淡出(續)");
 
   check("重複呼叫不會累積材質（不會每幀 clone）", () => {
     const rig = makeRig();

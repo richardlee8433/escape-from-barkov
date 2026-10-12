@@ -14,12 +14,15 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.22;
+    // AgX:與 Blender 預設的色彩轉換一致,烘焙貼圖在遊戲裡的色調才會跟算圖相同
+    this.renderer.toneMapping = THREE.AgXToneMapping;
+    this.renderer.toneMappingExposure = 1.25;
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x241c12);
+    // 遠景淡入午後的霧氣,地圖外緣不再是一片黑
+    this.scene.background = new THREE.Color(0xaebfa8);
+    this.scene.fog = new THREE.Fog(0xaebfa8, 62, 150);
 
     this.camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 400);
 

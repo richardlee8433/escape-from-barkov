@@ -20,6 +20,63 @@ export const SIDE_PATH = [[-8, 2], [-16, 12], [-26, 16]];
 export const RAVINE = [[33, -80], [34, -34], [34, -8], [34, 22], [35, 52], [34, 80]];
 export const BRIDGE_SPOT = { x: 34, z: 6, dirTo: [40, 6] };
 
+const GRASS_BASE = "#557f30";
+
+// 地面貼圖一張 2048 蓋 170 公尺,一公尺才 12 像素,近看會糊。
+// 在 shader 裡疊兩層程序化雜訊(世界座標,不會重複拼貼):
+// 草地上是深淺斑駁,泥土路上再加碎石顆粒與車轍般的明暗。
+const DETAIL_GLSL = /* glsl */ `
+  float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float gNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(gHash(i), gHash(i + vec2(1, 0)), u.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), u.x), u.y);
+  }
+  float gFbm(vec2 p) {
+    float s = 0.0, a = 0.5;
+    for (int k = 0; k < 4; k++) { s += gNoise(p) * a; p = p * 2.03 + 17.1; a *= 0.5; }
+    return s;
+  }
+`;
+
+function detailMaterial(map) {
+  const mat = new THREE.MeshStandardMaterial({ map, roughness: 1, metalness: 0 });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = "varying vec3 vGWorld;\n" + sh.vertexShader.replace(
+      "#include <worldpos_vertex>",
+      "#include <worldpos_vertex>\n vGWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;"
+    );
+    sh.fragmentShader = "varying vec3 vGWorld;\n" + DETAIL_GLSL + sh.fragmentShader.replace(
+      "#include <map_fragment>",
+      `#include <map_fragment>
+       {
+         vec2 w = vGWorld.xz;
+         float big = gFbm(w * 0.35);
+         float mid = gFbm(w * 1.6);
+         float fine = gNoise(w * 9.0);
+         // 泥土判斷:紅大於綠
+         float dirt = smoothstep(-0.02, 0.06, diffuseColor.r - diffuseColor.g);
+         float grassMul = 0.78 + 0.32 * big + 0.18 * (mid - 0.5);
+         float pebble = smoothstep(0.78, 0.9, gNoise(w * 5.5 + 3.3));
+         float dirtMul = 0.8 + 0.3 * mid + 0.12 * (fine - 0.5) + 0.22 * pebble;
+         diffuseColor.rgb *= mix(grassMul, dirtMul, dirt);
+       }`
+    );
+  };
+  return mat;
+}
+
+// 地圖外圍的大片地面:顏色與草地底色相同,遠處淡入霧裡,畫面邊緣不會露出虛空
+export function buildOuterGround() {
+  const mat = detailMaterial(null);
+  mat.color = new THREE.Color(GRASS_BASE).multiplyScalar(0.72);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = -0.02;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 export function buildGround() {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = TEX;
@@ -29,9 +86,9 @@ export function buildGround() {
   const tz = (z) => (z + SIZE / 2) * W2T;
 
   // 草地底色 + 斑駁
-  g.fillStyle = "#77a746";
+  g.fillStyle = GRASS_BASE;
   g.fillRect(0, 0, TEX, TEX);
-  const shades = ["#6d9c3e", "#82b34f", "#71a244", "#8ab858", "#679540"];
+  const shades = ["#4c7529", "#5f8c36", "#52792c", "#68933c", "#466d26"];
   for (let i = 0; i < 14000; i++) {
     g.fillStyle = shades[(Math.random() * shades.length) | 0];
     g.globalAlpha = 0.10 + Math.random() * 0.14;
@@ -70,9 +127,9 @@ export function buildGround() {
   }
 
   const dirt = [
-    [1.15, "#8a6f4a", 0.55],
-    [0.85, "#9c8055", 0.8],
-    [0.5, "#a98c5e", 0.75],
+    [1.15, "#6e5236", 0.55],
+    [0.85, "#7d5f40", 0.8],
+    [0.5, "#8a6a49", 0.75],
   ];
   paintPath(PATH, 4.5, dirt);
   paintPath(SIDE_PATH, 3.5, dirt);
@@ -86,10 +143,7 @@ export function buildGround() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
 
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(SIZE, SIZE),
-    new THREE.MeshStandardMaterial({ map: texture, roughness: 1, metalness: 0 })
-  );
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), detailMaterial(texture));
   mesh.rotation.x = -Math.PI / 2;
   mesh.receiveShadow = true;
 
