@@ -40,13 +40,14 @@ def main():
     for name in names:
         builder, kw, res, ao, *extra = ASSETS[name]
         groups = extra[0] if extra else None
+        bake_opts = extra[1] if len(extra) > 1 else {}
         t0 = time.time()
         lib.reset_scene()
         ob = builder(name, **kw)
         tris = lib.tri_count(ob)
         r = max(128, int(res * args.res_scale))
         path = os.path.abspath(os.path.join(args.out, name + ".glb"))
-        lib.bake_and_export(ob, path, res=r, samples=args.samples, ao_dist=ao, groups=groups)
+        lib.bake_and_export(ob, path, res=r, samples=args.samples, ao_dist=ao, groups=groups, **bake_opts)
         kb = os.path.getsize(path) / 1024
         print(f"[barkov] {name:16s} {tris:7d} tris  {r}px  {kb:7.0f} KB  {time.time() - t0:5.1f}s", flush=True)
 

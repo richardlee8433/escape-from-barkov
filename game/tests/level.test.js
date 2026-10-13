@@ -1,6 +1,8 @@
 import { BAL } from "../src/config/balance.js";
 import { Collision } from "../src/systems/Collision.js";
-import { RAVINE, RAVINE_HALF, BRIDGE, bridgeOpening } from "../src/world/GroundPaint.js";
+import {
+  RAVINE, RAVINE_HALF, BRIDGE, bridgeOpening, terrainHeight, ravineDistance, WATER_Y, RAVINE_DEPTH,
+} from "../src/world/GroundPaint.js";
 import { suite, check, eq } from "./harness.js";
 
 const HALF = BAL.world.size / 2;
@@ -383,5 +385,42 @@ export function run() {
     for (let i = 0; i < 60; i++) c.move(p, o.ux * 0.15, o.uz * 0.15, bodyFacing(yaw0));
     const along = (p.x - o.x) * o.ux + (p.z - o.z) * o.uz;
     return along > 6 ? true : `過不了橋 along=${along.toFixed(2)}`;
+  });
+
+  suite("凹陷的溝壑與河流");
+
+  check("溝壑以外的地形一律在遊戲平面上(角色不會飄在斜坡上)", () => {
+    // 碰撞讓身體邊緣永遠 ≥ RAVINE_HALF,所以那裡以外的地面必須是 0
+    for (let z = -80; z <= 80; z += 0.37) {
+      for (const off of [0, 0.01, 0.3, 1, 3]) {
+        for (const sgn of [-1, 1]) {
+          // 沿 x 方向找到距中線恰好 RAVINE_HALF + off 的點(溝壑大致南北向)
+          let x = 34 + sgn * (RAVINE_HALF + off);
+          for (let k = 0; k < 20; k++) x += sgn * (RAVINE_HALF + off - ravineDistance(x, z));
+          const h = terrainHeight(x, z);
+          if (Math.abs(h - BAL.world.gameplayY) > 1e-6) return `(${x.toFixed(2)}, ${z.toFixed(2)}) 高度 ${h}`;
+        }
+      }
+    }
+    return true;
+  });
+
+  check("溝壑真的是凹下去的,溝底在水面以下", () => {
+    for (let z = -80; z <= 80; z += 2) {
+      // 橫切一刀取最低點 = 溝底
+      let low = Infinity;
+      for (let x = 28; x <= 40; x += 0.1) low = Math.min(low, terrainHeight(x, z));
+      if (!(low < WATER_Y)) return `z=${z} 溝底 ${low.toFixed(2)} 沒有低於水面 ${WATER_Y}`;
+    }
+    return WATER_Y > -RAVINE_DEPTH && WATER_Y < 0 ? true : "水面不在溝底與地面之間";
+  });
+
+  check("橋身比溝壑寬,兩端都搭在平地上", () => {
+    const o = bridgeOpening();
+    for (const sgn of [-1, 1]) {
+      const x = o.x + o.ux * sgn * BRIDGE.halfLen, z = o.z + o.uz * sgn * BRIDGE.halfLen;
+      if (terrainHeight(x, z) !== 0) return `橋端 (${x}, ${z}) 懸在溝上`;
+    }
+    return true;
   });
 }

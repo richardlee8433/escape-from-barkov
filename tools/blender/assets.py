@@ -227,9 +227,12 @@ def build_gate(name, seed):
 
 
 def build_bridge(name, seed):
+    """木橋。遊戲裡會把整座橋沉到「橋面 = 地面」,也就是本地 z ≈ 0.61 對應世界地面;
+    溝壑深約 3 公尺(本地 z ≈ -2.4 是河床),所以橋墩木樁要一路插到 -2.7。"""
     rng = random.Random(seed)
     a = Asset(name)
     deck = 0.62
+    bank = 0.61                      # 本地座標裡的岸邊地面高度
     # 橋板(沿 Y 橫鋪)
     x = -5.0
     while x < 5.0:
@@ -240,15 +243,38 @@ def build_bridge(name, seed):
         x += w
     for y in (-1.4, 1.4):
         a.add(beam((-5.1, y, deck - 0.16), (5.1, y, deck - 0.16), 0.22, 0.24, 0.03), "timber", smooth=False)
-    # 欄杆
+    # 欄杆:柱子從橋面下方開始,不再懸在半空;兩端的柱子插進岸邊
     for y in (-2.1, 2.1):
         for px in (-4.7, -2.35, 0.0, 2.35, 4.7):
-            a.add(beam((px, y, -1.2), (px, y, deck + 1.05), 0.16, 0.16, 0.03), "wood_weathered",
+            bottom = bank - 0.35 if abs(px) > 4 else deck - 0.22
+            a.add(beam((px, y, bottom), (px, y, deck + 1.05), 0.16, 0.16, 0.03), "wood_weathered",
                   tint=(rng.uniform(0.85, 1.05),) * 3, smooth=False)
         a.add(beam((-4.85, y, deck + 0.98), (4.85, y, deck + 0.98), 0.13, 0.12, 0.03), "wood_weathered", smooth=False)
         a.add(beam((-4.85, y, deck + 0.5), (4.85, y, deck + 0.5), 0.08, 0.1, 0.02), "wood_weathered", smooth=False)
-        a.add(beam((-4.7, y, deck - 0.1), (-2.35, y, -1.0), 0.12, 0.12, 0.02), "timber", smooth=False)
-        a.add(beam((4.7, y, deck - 0.1), (2.35, y, -1.0), 0.12, 0.12, 0.02), "timber", smooth=False)
+        # 欄杆柱外側的托架,把柱子接到橋面下的橫梁
+        for px in (-2.35, 0.0, 2.35):
+            a.add(beam((px, y * 0.98, deck - 0.2), (px, 0, deck - 0.2), 0.1, 0.1, 0.015), "timber", smooth=False)
+
+    # 橋墩:兩排圓木樁插進河床,上面一根帽梁托住縱梁,中間 X 形斜撐
+    for bx in (-1.6, 1.6):
+        for py in (-1.55, 1.55):
+            pile = limb((bx + rng.uniform(-0.03, 0.03), py, -2.75), (bx, py, deck - 0.28), 0.14, 0.12, 10)
+            displace(pile, 0.01, 4.0, rng.random() * 9)
+            a.add(pile, "bark")
+        a.add(beam((bx, -1.85, deck - 0.34), (bx, 1.85, deck - 0.34), 0.24, 0.2, 0.03), "timber", smooth=False)
+        a.add(beam((bx, -1.5, -1.9), (bx, 1.5, deck - 0.5), 0.1, 0.12, 0.015), "timber", smooth=False)
+        a.add(beam((bx, 1.5, -1.9), (bx, -1.5, deck - 0.5), 0.1, 0.12, 0.015), "timber", smooth=False)
+        # 斜撐從樁頂延伸到縱梁,分散跨距
+        for sgn in (-1, 1):
+            for py in (-1.4, 1.4):
+                a.add(beam((bx, py, -0.5), (bx + sgn * 1.3, py, deck - 0.3), 0.1, 0.1, 0.015), "timber", smooth=False)
+
+    # 崖邊橋基:縱梁在溝壑崖邊(距中線 3 公尺)壓在一排石塊上;石頂低於縱梁底面,不會穿出橋面
+    for bx in (-3.15, 3.15):
+        for py in (-1.6, -0.55, 0.55, 1.6):
+            r = rng.uniform(0.3, 0.36)
+            a.add(decimate(blob(r, 3, (1.1, 1.0, 0.75), loc=(bx + rng.uniform(-0.08, 0.08), py, 0.0),
+                                amp=0.15, freq=1.8, seed=rng.random() * 99), 140), "stone_found")
     return finish_object(a.to_object(), 40)
 
 
@@ -530,7 +556,8 @@ ASSETS = {
     "log": (build_log, dict(seed=52), 512, 0.4),
     "fence": (build_fence, dict(seed=61), 512, 0.4),
     "gate": (build_gate, dict(seed=62), 512, 0.5),
-    "bridge": (build_bridge, dict(seed=63), 1024, 0.6),
+    # 橋墩伸到溝底:烘焙時不放地面(否則水面以下的木樁會被地面的 AO 壓黑)
+    "bridge": (build_bridge, dict(seed=63), 1024, 0.6, None, {"ground": False}),
     "barrel": (build_barrel, dict(seed=71), 512, 0.3),
     "crate": (build_crate, dict(seed=72), 512, 0.3),
     "chest": (build_chest, dict(seed=73), 512, 0.3),

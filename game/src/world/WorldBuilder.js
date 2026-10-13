@@ -1,10 +1,12 @@
 import * as THREE from "three";
 import { BAL } from "../config/balance.js";
 import {
-  buildGround, buildOuterGround, PATH, SIDE_PATH, RAVINE, RAVINE_HALF, BRIDGE_SPOT, BRIDGE, bridgeOpening,
+  buildGround, PATH, SIDE_PATH, RAVINE, RAVINE_HALF, BRIDGE_SPOT, BRIDGE, bridgeOpening,
+  ravineDistance, WATER_Y, FLOOR_HALF,
 } from "./GroundPaint.js";
 import { GrassField } from "./Grass.js";
 import { FlowerField } from "./Flowers.js";
+import { River } from "./River.js";
 import { CAMERA_OFFSET } from "../render/CameraRig.js";
 
 // 把整張地圖搭出來：光、地面、草、石牆、樹、營地、橋、出口。
@@ -37,7 +39,7 @@ export function buildWorld(scene, assets, collision) {
   const ground = buildGround();
   scene.add(ground.mesh);
   const grass = new GrassField(scene, ground.isGrassAt, ground.colorAt);
-  scene.add(buildOuterGround());
+  const river = new River(scene);
 
   // ---------- 擺放工具 ----------
   function put(name, x, z, target, ry = Math.random() * Math.PI * 2, opts = {}) {
@@ -322,6 +324,37 @@ export function buildWorld(scene, assets, collision) {
     }
   }
 
+  // ---------- 河裡的石頭(半露出水面,純視覺) ----------
+  {
+    const centerX = (z) => {
+      for (let i = 0; i < RAVINE.length - 1; i++) {
+        const [ax, az] = RAVINE[i], [bx, bz] = RAVINE[i + 1];
+        if (z >= az && z <= bz) return ax + ((bx - ax) * (z - az)) / (bz - az);
+      }
+      return RAVINE[0][0];
+    };
+    const wetMats = new Map();
+    for (let i = 0; i < 46; i++) {
+      const z = (Math.random() - 0.5) * 200;
+      if (Math.abs(z - BRIDGE_SPOT.z) < 4) continue;
+      const x = centerX(z) + (Math.random() - 0.5) * 2 * FLOOR_HALF;
+      const size = 0.6 + Math.random() * 1.1;
+      const rock = put(Math.random() < 0.6 ? "rock_c" : "rock_b", x, z, size, undefined, { dim: "max" });
+      rock.position.y = WATER_Y - 0.15 - Math.random() * size * 0.25;
+      // 溝底光線暗、石頭是濕的:換成壓暗的材質(每種原始材質只複製一次)
+      rock.traverse((m) => {
+        if (!m.isMesh) return;
+        if (!wetMats.has(m.material)) {
+          const wet = m.material.clone();
+          wet.color = new THREE.Color(0.5, 0.52, 0.5);
+          wet.roughness = 0.45;
+          wetMats.set(m.material, wet);
+        }
+        m.material = wetMats.get(m.material);
+      });
+    }
+  }
+
   // ---------- 木箱營地 ----------
   function camp(cx, cz) {
     const props = [
@@ -363,6 +396,7 @@ export function buildWorld(scene, assets, collision) {
     // 方形地圖:沿方形外圈取點
     const x = Math.max(-ring, Math.min(ring, Math.cos(a) * ring * 1.5));
     const z = Math.max(-ring, Math.min(ring, Math.sin(a) * ring * 1.5));
+    if (ravineDistance(x, z) < RAVINE_HALF + 3) continue; // 不要長進延伸到界外的溝裡
     const t = TREES[(Math.random() * TREES.length) | 0];
     put(t.name, x, z, t.h[0] + Math.random() * (t.h[1] - t.h[0]) * 1.2);
   }
@@ -420,6 +454,7 @@ export function buildWorld(scene, assets, collision) {
   return {
     followSun,
     grass,
+    river,
     occluders,
     isGrassAt: ground.isGrassAt,
     playerStart,

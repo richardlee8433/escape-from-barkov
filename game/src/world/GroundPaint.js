@@ -16,13 +16,62 @@ export const PATH = [
 ];
 // 支線：通往木箱營地
 export const SIDE_PATH = [[-8, 2], [-16, 12], [-26, 16]];
-// 溝壑（過橋區段拉直成垂直）
-export const RAVINE = [[33, -80], [34, -34], [34, -8], [34, 22], [35, 52], [34, 80]];
+// 溝壑（過橋區段拉直成垂直）。兩端延伸到地圖外,溝與河流一路流進霧裡
+export const RAVINE = [[33, -140], [33, -80], [34, -34], [34, -8], [34, 22], [35, 52], [34, 80], [34, 140]];
 export const BRIDGE_SPOT = { x: 34, z: 6, dirTo: [40, 6] };
 
 // 溝壑深色部分的半寬。畫面與碰撞共用這一個數字:
 // 深色溝底一律畫在這條線以內,碰撞也以它為準,看到的邊緣就是走不過去的邊緣。
 export const RAVINE_HALF = 3.0;
+
+// 溝壑的立體形狀:崖邊在 RAVINE_HALF(= 碰撞邊界,角色永遠站在平地上),
+// 往內陡降到深 RAVINE_DEPTH 的溝底,溝底半寬 FLOOR_HALF。河面在 WATER_Y。
+export const RAVINE_DEPTH = 3.0;
+export const FLOOR_HALF = 1.4;
+export const WATER_Y = -2.35;
+export const WATER_HALF = 2.6; // 河面略寬於水線,邊緣藏進岩壁裡
+
+// 到溝壑中心線的水平距離
+export function ravineDistance(x, z) {
+  let best = Infinity;
+  for (let i = 0; i < RAVINE.length - 1; i++) {
+    const [ax, az] = RAVINE[i], [bx, bz] = RAVINE[i + 1];
+    const vx = bx - ax, vz = bz - az;
+    let t = ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const d = Math.hypot(x - ax - vx * t, z - az - vz * t);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// 決定性的 2D value noise(地形要每次一樣,不能用 Math.random)
+function hash2(i, j) {
+  const h = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
+  return h - Math.floor(h);
+}
+function vnoise(x, z) {
+  const i = Math.floor(x), j = Math.floor(z);
+  const fx = x - i, fz = z - j;
+  const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
+  const a = hash2(i, j), b = hash2(i + 1, j), c = hash2(i, j + 1), d = hash2(i + 1, j + 1);
+  return (a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz) * 2 - 1;
+}
+
+// 地形高度:溝壑以外一律 0(遊戲平面),溝壑裡是凹凸不平的岩壁與溝底
+export function terrainHeight(x, z) {
+  const d = ravineDistance(x, z);
+  if (d >= RAVINE_HALF) return 0;
+  // 崖邊(inner=0)保持乾淨的邊界,越往裡岩壁越嶙峋
+  const inner = Math.min(1, (RAVINE_HALF - d) / 0.35);
+  const dd = d + (vnoise(x * 0.7, z * 0.7) * 0.3 + vnoise(x * 1.9, z * 1.9) * 0.12) * inner;
+  let t = (RAVINE_HALF - dd) / (RAVINE_HALF - FLOOR_HALF);
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  // pow < 1:崖邊幾乎垂直,往下漸緩成碎石坡
+  let y = -RAVINE_DEPTH * Math.pow(t, 0.55);
+  y += vnoise(x * 2.3 + 5.1, z * 2.3) * 0.14 * inner;
+  return y;
+}
 // 橋(Blender 模型 bridge.glb,原尺寸):橋身沿 BRIDGE_SPOT → dirTo,
 // 半長 5(兩端各搭在岸上約 1.6),欄杆中心在 ±2.1、內側約 ±2.03。
 export const BRIDGE = { halfLen: 5.0, railOffset: 2.1, innerHalfWidth: 2.03 };
@@ -61,11 +110,13 @@ const DETAIL_GLSL = /* glsl */ `
 function detailMaterial(map) {
   const mat = new THREE.MeshStandardMaterial({ map, roughness: 1, metalness: 0 });
   mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = "varying vec3 vGWorld;\n" + sh.vertexShader.replace(
+    sh.vertexShader = "varying vec3 vGWorld;\nvarying vec3 vGNormal;\n" + sh.vertexShader.replace(
       "#include <worldpos_vertex>",
-      "#include <worldpos_vertex>\n vGWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;"
+      `#include <worldpos_vertex>
+       vGWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
+       vGNormal = normalize(mat3(modelMatrix) * objectNormal);`
     );
-    sh.fragmentShader = "varying vec3 vGWorld;\n" + DETAIL_GLSL + sh.fragmentShader.replace(
+    sh.fragmentShader = "varying vec3 vGWorld;\nvarying vec3 vGNormal;\n" + DETAIL_GLSL + sh.fragmentShader.replace(
       "#include <map_fragment>",
       `#include <map_fragment>
        {
@@ -79,21 +130,69 @@ function detailMaterial(map) {
          float pebble = smoothstep(0.78, 0.9, gNoise(w * 5.5 + 3.3));
          float dirtMul = 0.8 + 0.3 * mid + 0.12 * (fine - 0.5) + 0.22 * pebble;
          diffuseColor.rgb *= mix(grassMul, dirtMul, dirt);
+
+         // 溝壑岩壁:陡的地方換成有層理的岩土色
+         float steep = 1.0 - clamp(vGNormal.y, 0.0, 1.0);
+         float below = clamp(-vGWorld.y / ${RAVINE_DEPTH.toFixed(1)}, 0.0, 1.0);
+         float strata = gNoise(vec2(vGWorld.y * 4.5 + gNoise(w * 0.6) * 2.0, (w.x + w.y) * 0.2));
+         vec3 rock = mix(vec3(0.15, 0.115, 0.08), vec3(0.34, 0.28, 0.2), strata);
+         rock *= 0.75 + 0.45 * gFbm(w * 2.2 + vGWorld.y * 1.3);
+         float rockAmt = clamp(smoothstep(0.2, 0.5, steep) + below * 0.7, 0.0, 1.0);
+         diffuseColor.rgb = mix(diffuseColor.rgb, rock, rockAmt);
+         // 越深越暗(溝底照不太到天光),水線附近是濕的深色
+         diffuseColor.rgb *= mix(1.0, 0.5, smoothstep(0.0, 1.0, below));
+         diffuseColor.rgb *= mix(1.0, 0.6, smoothstep(${(WATER_Y + 0.45).toFixed(2)}, ${WATER_Y.toFixed(2)}, vGWorld.y));
+         // 界外(邊界石牆以外)壓暗一點
+         diffuseColor.rgb *= mix(1.0, 0.78, step(${(SIZE / 2).toFixed(1)}, max(abs(w.x), abs(w.y))));
        }`
     );
   };
   return mat;
 }
 
-// 地圖外圍的大片地面:顏色與草地底色相同,遠處淡入霧裡,畫面邊緣不會露出虛空
-export function buildOuterGround() {
-  const mat = detailMaterial(null);
-  mat.color = new THREE.Color(GRASS_BASE).multiplyScalar(0.72);
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), mat);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = -0.02;
-  mesh.receiveShadow = true;
-  return mesh;
+function range(a, b, step) {
+  const out = [];
+  for (let v = a; v < b - 1e-6; v += step) out.push(v);
+  out.push(b);
+  return out;
+}
+
+// 溝壑橫向:中心附近 0.2 公尺一格(岩壁只有 1.5 公尺寬),外側 1 公尺
+function stripXs(x0, x1) {
+  const xs = new Set();
+  for (const v of range(x0, x1, 1)) xs.add(+v.toFixed(3));
+  for (const v of range(29.4, 38.6, 0.2)) xs.add(+v.toFixed(3));
+  return [...xs].sort((a, b) => a - b);
+}
+
+// xs × zs 的格網,高度 = h(x, z);UV 與 2048 地面貼圖對齊(與舊版 PlaneGeometry 相同)
+function terrainGrid(xs, zs, h = terrainHeight) {
+  const nx = xs.length, nz = zs.length;
+  const pos = new Float32Array(nx * nz * 3);
+  const uv = new Float32Array(nx * nz * 2);
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      const k = j * nx + i, x = xs[i], z = zs[j];
+      pos[k * 3] = x;
+      pos[k * 3 + 1] = h(x, z);
+      pos[k * 3 + 2] = z;
+      uv[k * 2] = (x + SIZE / 2) / SIZE;
+      uv[k * 2 + 1] = 1 - (z + SIZE / 2) / SIZE;
+    }
+  }
+  const idx = [];
+  for (let j = 0; j < nz - 1; j++) {
+    for (let i = 0; i < nx - 1; i++) {
+      const a = j * nx + i, b = a + nx, c = a + 1, d = b + 1;
+      idx.push(a, b, c, c, b, d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 export function buildGround() {
@@ -199,9 +298,25 @@ export function buildGround() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
 
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), detailMaterial(texture));
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.receiveShadow = true;
+  // 地形:溝壑兩側一條密網格(真的往下挖),其餘是平面。
+  // 平面延伸到地圖外 300 公尺,貼圖超出範圍時取邊緣顏色,遠處淡入霧裡。
+  const mat = detailMaterial(texture);
+  const mesh = new THREE.Group();
+  const X0 = 26, X1 = 42, ZR = 140, FAR = 300;
+  const strip = new THREE.Mesh(terrainGrid(stripXs(X0, X1), range(-ZR, ZR, 0.5)), mat);
+  strip.receiveShadow = true;
+  strip.castShadow = true; // 岩壁的影子投進溝底,才看得出深度
+  mesh.add(strip);
+  for (const [xs, zs] of [
+    [[-FAR, X0], [-FAR, FAR]],
+    [[X1, FAR], [-FAR, FAR]],
+    [[X0, X1], [-FAR, -ZR]],
+    [[X0, X1], [ZR, FAR]],
+  ]) {
+    const flat = new THREE.Mesh(terrainGrid(xs, zs, () => 0), mat);
+    flat.receiveShadow = true;
+    mesh.add(flat);
+  }
 
   const pix = g.getImageData(0, 0, TEX, TEX).data;
   function colorAt(x, z) {
