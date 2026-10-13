@@ -15,3 +15,6 @@ Thumbs.db
 
 # Python bytecode (tools/blender)
 __pycache__/
+
+# 網站打包輸出(node tools/build-web.mjs)
+dist/
