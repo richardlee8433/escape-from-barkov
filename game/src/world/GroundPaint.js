@@ -20,6 +20,25 @@ export const SIDE_PATH = [[-8, 2], [-16, 12], [-26, 16]];
 export const RAVINE = [[33, -80], [34, -34], [34, -8], [34, 22], [35, 52], [34, 80]];
 export const BRIDGE_SPOT = { x: 34, z: 6, dirTo: [40, 6] };
 
+// 溝壑深色部分的半寬。畫面與碰撞共用這一個數字:
+// 深色溝底一律畫在這條線以內,碰撞也以它為準,看到的邊緣就是走不過去的邊緣。
+export const RAVINE_HALF = 3.0;
+// 橋(Blender 模型 bridge.glb,原尺寸):橋身沿 BRIDGE_SPOT → dirTo,
+// 半長 5(兩端各搭在岸上約 1.6),欄杆中心在 ±2.1、內側約 ±2.03。
+export const BRIDGE = { halfLen: 5.0, railOffset: 2.1, innerHalfWidth: 2.03 };
+
+// 給 Collision.addRavine 用的橋面開口
+export function bridgeOpening() {
+  const { x, z, dirTo } = BRIDGE_SPOT;
+  const L = Math.hypot(dirTo[0] - x, dirTo[1] - z);
+  return {
+    x, z,
+    ux: (dirTo[0] - x) / L, uz: (dirTo[1] - z) / L,
+    halfLen: BRIDGE.halfLen,
+    halfWidth: BRIDGE.innerHalfWidth,
+  };
+}
+
 const GRASS_BASE = "#557f30";
 
 // 地面貼圖一張 2048 蓋 170 公尺,一公尺才 12 像素,近看會糊。
@@ -133,11 +152,48 @@ export function buildGround() {
   ];
   paintPath(PATH, 4.5, dirt);
   paintPath(SIDE_PATH, 3.5, dirt);
-  paintPath(RAVINE, 7, [
-    [1.2, "#5d4a30", 0.7],
-    [0.8, "#463724", 0.9],
-    [0.45, "#332818", 0.9],
-  ]);
+  paintRavine();
+
+  // 溝壑:岸邊(可走的褐色土坡)→ 溝底(深色,不可走)→ 最深處。
+  // 每一層都是「圓滑粗線 + 線內的不規則圓斑」,圓斑保證不超出該層的半寬,
+  // 所以深色溝底的外緣恰好落在 RAVINE_HALF,和碰撞一致。
+  function paintRavine() {
+    const pts = [];
+    for (let i = 0; i < RAVINE.length - 1; i++) {
+      const [ax, az] = RAVINE[i], [bx, bz] = RAVINE[i + 1];
+      const steps = Math.ceil(Math.hypot(bx - ax, bz - az) * 2);
+      for (let k = 0; k < steps; k++) {
+        const t = k / steps;
+        pts.push([ax + (bx - ax) * t, az + (bz - az) * t]);
+      }
+    }
+    const layers = [
+      [RAVINE_HALF + 1.3, "#6a5236", 0.75], // 岸
+      [RAVINE_HALF, "#3f3020", 1.0],        // 溝底邊緣
+      [RAVINE_HALF - 1.0, "#2e2316", 1.0],
+      [RAVINE_HALF - 2.0, "#211910", 1.0],  // 最深處
+    ];
+    g.lineCap = g.lineJoin = "round";
+    for (const [half, color, alpha] of layers) {
+      g.globalAlpha = alpha;
+      g.strokeStyle = g.fillStyle = color;
+      // 內縮 0.7 的粗線當骨架,邊緣再用圓斑長回到 half,形成不規則但有上限的輪廓
+      g.lineWidth = (half - 0.7) * 2 * W2T;
+      g.beginPath();
+      g.moveTo(tx(RAVINE[0][0]), tz(RAVINE[0][1]));
+      for (const [x, z] of RAVINE) g.lineTo(tx(x), tz(z));
+      g.stroke();
+      for (const [x, z] of pts) {
+        const r = 0.25 + Math.random() * 0.45;          // 圓斑半徑
+        const off = (half - r) * (Math.random() < 0.5 ? -1 : 1) * (0.75 + Math.random() * 0.25);
+        // 沿法線(溝壑大致是南北向,法線 ≈ x 軸)偏移;off + r ≤ half
+        g.beginPath();
+        g.arc(tx(x + off), tz(z), r * W2T, 0, 7);
+        g.fill();
+      }
+    }
+    g.globalAlpha = 1;
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;

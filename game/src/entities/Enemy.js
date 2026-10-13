@@ -27,9 +27,7 @@ export class Enemy {
     const intent = this.brain.update(dt, playerPos, difficulty);
 
     if (intent.move) {
-      const next = this.pos.clone().addScaledVector(intent.move, dt);
-      collision.resolveCircle(next, this.hitR * 0.8);
-      this.pos.copy(next);
+      collision.move(this.pos, intent.move.x * dt, intent.move.z * dt, this.hitR * 0.8);
     }
     if (intent.faceYaw !== null) {
       let diff = intent.faceYaw - this.root.rotation.y;
@@ -46,11 +44,10 @@ export class Enemy {
     }
   }
 
-  // 中彈退後（退完要解碰撞,避免被打進石頭裡）
+  // 中彈退後:走一般的移動流程(分小步、會被擋),不會被打穿柵欄或打進石頭裡
   knockback(fromPos, collision) {
     const away = this.pos.clone().sub(fromPos).setY(0).normalize().multiplyScalar(E.knockback);
-    this.pos.add(away);
-    collision.resolveCircle(this.pos, this.hitR * 0.8);
+    collision.move(this.pos, away.x, away.z, this.hitR * 0.8);
   }
 
   dispose(scene) {

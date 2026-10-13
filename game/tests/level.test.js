@@ -1,5 +1,6 @@
 import { BAL } from "../src/config/balance.js";
 import { Collision } from "../src/systems/Collision.js";
+import { RAVINE, RAVINE_HALF, BRIDGE, bridgeOpening } from "../src/world/GroundPaint.js";
 import { suite, check, eq } from "./harness.js";
 
 const HALF = BAL.world.size / 2;
@@ -149,20 +150,238 @@ export function run() {
     return true;
   });
 
-  suite("橋口通道寬度");
+  suite("橋與溝壑");
 
-  check("橋的欄杆之間留有足夠玩家通過的寬度", () => {
-    // WorldBuilder：欄杆在 ±2.4、半徑 0.45
-    const gap = (2.4 - 0.45) * 2;
-    const needed = R * 2;
-    return gap >= needed * 2
-      ? true
-      : `通道 ${gap.toFixed(2)} 對玩家直徑 ${needed.toFixed(2)} 來說太窄`;
+  // 與 WorldBuilder 完全相同的設定:溝壑帶 + 橋面開口 + 兩條欄杆膠囊
+  function bridgeWorld() {
+    const c = new Collision();
+    const o = bridgeOpening();
+    c.addRavine(RAVINE, RAVINE_HALF, [o]);
+    for (const side of [-BRIDGE.railOffset, BRIDGE.railOffset]) {
+      const a = BRIDGE.halfLen - 0.15;
+      c.addCapsule(o.x - o.ux * a - o.uz * side, o.z - o.uz * a + o.ux * side,
+        o.x + o.ux * a - o.uz * side, o.z + o.uz * a + o.ux * side, 0.08, { blocksBullets: false });
+    }
+    return { c, o };
+  }
+  // 到溝壑中心線的距離
+  const ravineDist = (x, z) => {
+    let best = Infinity;
+    for (let i = 0; i < RAVINE.length - 1; i++) {
+      const [ax, az] = RAVINE[i], [bx, bz] = RAVINE[i + 1];
+      const vx = bx - ax, vz = bz - az;
+      let t = ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz);
+      t = Math.max(0, Math.min(1, t));
+      best = Math.min(best, Math.hypot(x - ax - vx * t, z - az - vz * t));
+    }
+    return best;
+  };
+  // 在橋面範圍內嗎(沿橋方向、橫向都算)
+  const onDeck = (o, p, r) => {
+    const dx = p.x - o.x, dz = p.z - o.z;
+    const along = dx * o.ux + dz * o.uz, lat = -dx * o.uz + dz * o.ux;
+    return Math.abs(along) <= o.halfLen && Math.abs(lat) + r <= o.halfWidth + 1e-3;
+  };
+  // 合法 = 整個身體都在岸上,或者整個身體都在橋面上
+  const legal = (o, p) => ravineDist(p.x, p.z) >= RAVINE_HALF + R - 1e-3 || onDeck(o, p, R);
+
+  check("從橋頭走到橋尾可以通過", () => {
+    const { c, o } = bridgeWorld();
+    const p = v(o.x - o.ux * 7, o.z - o.uz * 7);
+    for (let i = 0; i < 120; i++) c.move(p, o.ux * 0.15, o.uz * 0.15, R);
+    const along = (p.x - o.x) * o.ux + (p.z - o.z) * o.uz;
+    return along > 6 ? true : `卡在橋上,只走到 along=${along.toFixed(2)}`;
   });
 
-  check("溝壑開口不會反過來吃掉橋口", () => {
-    // 開口半徑 4.5 > 溝壑圓半徑 2.2，最近的溝壑圓不會侵入通道
-    const skip = 4.5, ravineR = 2.2;
-    return skip > ravineR + R ? true : "溝壑圓侵入橋口";
+  check("橋以外的地方走不進溝壑", () => {
+    const { c } = bridgeWorld();
+    const p = v(26, -30);
+    for (let i = 0; i < 200; i++) c.move(p, 0.15, 0, R); // 一路往東衝向溝壑
+    return ravineDist(p.x, p.z) >= RAVINE_HALF + R - 1e-3
+      ? true
+      : `掉進溝裡,離中心線 ${ravineDist(p.x, p.z).toFixed(2)}`;
+  });
+
+  check("在橋上往側面擠,身體不會越過欄杆內側", () => {
+    const { c, o } = bridgeWorld();
+    const p = v(o.x, o.z);
+    let worst = 0;
+    for (let i = 0; i < 200; i++) {
+      c.move(p, -o.uz * 0.15, o.ux * 0.15, R); // 往左擠
+      const lat = Math.abs(-(p.x - o.x) * o.uz + (p.z - o.z) * o.ux);
+      worst = Math.max(worst, lat + R);
+    }
+    return worst <= o.halfWidth + 1e-3 ? true : `身體探出欄杆 ${(worst - o.halfWidth).toFixed(3)}`;
+  });
+
+  check("沿著岸邊繞過橋頭,不會從欄杆外側滑進溝裡", () => {
+    const { c, o } = bridgeWorld();
+    // 從橋頭外側(欄杆外)沿溝壑方向走過去
+    const start = v(o.x - o.ux * 4.2 - o.uz * 4, o.z - o.uz * 4.2 + o.ux * 4);
+    const p = { ...start };
+    for (let i = 0; i < 160; i++) {
+      c.move(p, o.uz * 0.15 + o.ux * 0.05, -o.ux * 0.15 + o.uz * 0.05, R);
+      if (!legal(o, p)) return `第 ${i} 步一半在橋上一半在溝裡 (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`;
+    }
+    return true;
+  });
+
+  check("橋頭附近隨機亂走 3000 步,永遠不會出現一半在橋、一半在溝", () => {
+    const { c, o } = bridgeWorld();
+    const p = v(o.x - o.ux * 6, o.z);
+    let seed = 777;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    for (let i = 0; i < 3000; i++) {
+      const a = rnd() * Math.PI * 2;
+      c.move(p, Math.cos(a) * 0.3, Math.sin(a) * 0.3, R);
+      // 太遠就拉回橋附近,讓亂走集中在橋頭
+      if (Math.hypot(p.x - o.x, p.z - o.z) > 9) { p.x = o.x - o.ux * 6; p.z = o.z; }
+      if (!legal(o, p)) return `第 ${i} 步非法位置 (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`;
+    }
+    return true;
+  });
+
+  check("溝壑裡不能生成東西,橋面上可以", () => {
+    const { c, o } = bridgeWorld();
+    if (c.isFree(34, -40, 1)) return "溝底被判定為可放置";
+    return eq(c.isFree(o.x, o.z, 0.5), true);
+  });
+
+  check("溝壑不擋子彈", () => {
+    const { c } = bridgeWorld();
+    return eq(c.hitStatic(34, -40, 0.2), false);
+  });
+
+  suite("石縫與形狀");
+
+  check("擠進兩顆石頭之間的窄縫不會卡死,退得出來", () => {
+    const c = new Collision();
+    // 兩顆長形巨石呈 V 字,縫口比角色窄
+    c.addCapsule(-3, 3, 0, 0.3, 1.0);
+    c.addCapsule(3, 3, 0, 0.3, 1.0);
+    const p = v(0, 6);
+    for (let i = 0; i < 120; i++) c.move(p, 0, -0.15, R); // 一直往縫裡擠
+    if (c.penetration(p.x, p.z, R) > 0.02) return "停在石頭裡";
+    const before = p.z;
+    for (let i = 0; i < 20; i++) c.move(p, 0, 0.15, R); // 往回走
+    return p.z > before + 2.5 ? true : `退不出來 Δz=${(p.z - before).toFixed(2)}`;
+  });
+
+  check("任何移動結束後都不會停在障礙物裡", () => {
+    const c = new Collision();
+    let seed = 99;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    // 一堆亂擺的膠囊、方盒、圓,彼此重疊、留下各種窄縫
+    for (let i = 0; i < 40; i++) {
+      const x = (rnd() - 0.5) * 30, z = (rnd() - 0.5) * 30, a = rnd() * 6.28;
+      const k = i % 3;
+      if (k === 0) c.addCapsule(x, z, x + Math.cos(a) * 3, z + Math.sin(a) * 3, 0.4 + rnd());
+      else if (k === 1) c.addBox(x, z, a, 0.5 + rnd() * 2, 0.5 + rnd() * 2);
+      else c.addStatic(x, z, 0.5 + rnd() * 1.5);
+    }
+    const p = v(0, 0);
+    c.resolveCircle(p, R);
+    for (let i = 0; i < 3000; i++) {
+      const a = rnd() * Math.PI * 2;
+      c.move(p, Math.cos(a) * 0.3, Math.sin(a) * 0.3, R);
+      const pen = c.penetration(p.x, p.z, R);
+      if (pen > 0.02) return `第 ${i} 步卡進障礙,穿透 ${pen.toFixed(3)}`;
+    }
+    return true;
+  });
+
+  check("長形巨石的兩端也擋得住(不是只有中間)", () => {
+    const c = new Collision();
+    c.addCapsule(-2, 0, 2, 0, 0.8); // 長 5.6、寬 1.6 的石頭
+    // 正面撞向靠近末端的地方:舊版一顆置中的圓(半徑取短邊)在 x=1.8 處根本碰不到
+    const p = v(1.8, -4);
+    for (let i = 0; i < 60; i++) c.move(p, 0, 0.15, R);
+    return c.penetration(p.x, p.z, R) <= 0.02 && p.z < 0
+      ? true
+      : `穿過石頭末端 z=${p.z.toFixed(2)}`;
+  });
+
+  check("轉了角度的方盒:牆面貼得住、牆角不會多出隱形牆", () => {
+    const c = new Collision();
+    c.addBox(0, 0, Math.PI / 6, 4, 2.5);
+    // 沿長邊外側 0.6 處(玩家半徑 0.5)應該可以站
+    const ca = Math.cos(Math.PI / 6), sa = Math.sin(Math.PI / 6);
+    const lx = 0, lz = 2.5 + 0.6; // 本地座標
+    const wx = lx * ca + lz * sa, wz = -lx * sa + lz * ca;
+    if (!c.isFree(wx, wz, R)) return "牆外 0.1 的位置被誤判為擋住";
+    // 正中央當然不行
+    return eq(c.isFree(0, 0, R), false);
+  });
+
+  check("方盒擋子彈、擋視線", () => {
+    const c = new Collision();
+    c.addBox(5, 0, 0.3, 1, 3);
+    if (!c.hitStatic(5, 0, 0.2)) return "子彈穿過方盒";
+    return eq(c.sightBlocked(0, 0, 10, 0), true);
+  });
+
+  check("細柵欄(膠囊)擋人不擋子彈,也不會一步跨過去", () => {
+    const c = new Collision();
+    c.addCapsule(-5, 0, 5, 0, 0.15, { blocksBullets: false });
+    const p = v(0, -1);
+    c.move(p, 0, 2.0, R); // 一次跨 2 公尺(像被擊退)
+    if (p.z > 0) return `被一步跨過柵欄 z=${p.z.toFixed(2)}`;
+    return eq(c.hitStatic(0, 0, 0.2), false);
+  });
+
+  suite("長條身體(柯基)");
+
+  const BODY = BAL.player.body;
+  const bodyFacing = (yaw) => ({ ...BODY, fx: Math.sin(yaw), fz: Math.cos(yaw) });
+
+  check("正面撞牆時鼻子不會插進牆裡", () => {
+    const c = new Collision();
+    c.addBox(0, 5, 0, 6, 1);           // 牆面在 z = 4
+    const p = v(0, 0);
+    const b = bodyFacing(0);           // 面向 +z(朝牆)
+    for (let i = 0; i < 80; i++) c.move(p, 0, 0.15, b);
+    const nose = p.z + BODY.half + BODY.r;
+    return nose <= 4 + 0.02 ? true : `鼻尖 ${nose.toFixed(2)} 插進牆面 4`;
+  });
+
+  check("貼著牆轉身:身體被推開,不會轉進牆裡", () => {
+    const c = new Collision();
+    c.addBox(0, 5, 0, 6, 1);           // 牆面在 z = 4
+    const p = v(0, 4 - BODY.r - 0.01); // 側身貼牆(面向 +x)
+    let yaw = Math.PI / 2;
+    for (let i = 0; i < 30; i++) {     // 慢慢轉向牆
+      const next = yaw - 0.06;
+      if (c.turn(p, bodyFacing(next))) yaw = next;
+      const pen = c.penetration(p.x, p.z, bodyFacing(yaw));
+      if (pen > 0.02) return `轉身時插進牆裡 ${pen.toFixed(3)}`;
+    }
+    return yaw < 0.5 ? true : `應該要能轉過來(被推離牆面),卻停在 yaw=${yaw.toFixed(2)}`;
+  });
+
+  check("面向溝壑走到岸邊,鼻子不會探出溝緣", () => {
+    const c = new Collision();
+    c.addRavine(RAVINE, RAVINE_HALF, [bridgeOpening()]);
+    const p = v(26, -30);
+    const b = bodyFacing(Math.PI / 2); // 面向 +x(溝壑)
+    for (let i = 0; i < 200; i++) c.move(p, 0.15, 0, b);
+    const nose = ravineDist(p.x + BODY.half + BODY.r, p.z);
+    return nose >= RAVINE_HALF - 0.02 ? true : `鼻尖探進溝裡,離中心線 ${nose.toFixed(2)}`;
+  });
+
+  check("面向前方走過整座橋,在橋上轉一圈也不會卡住或探出欄杆", () => {
+    const { c, o } = bridgeWorld();
+    const p = v(o.x - o.ux * 7, o.z - o.uz * 7);
+    const yaw0 = Math.atan2(o.ux, o.uz);
+    for (let i = 0; i < 50; i++) c.move(p, o.ux * 0.15, o.uz * 0.15, bodyFacing(yaw0));
+    // 在橋中央轉一整圈
+    let yaw = yaw0;
+    for (let i = 0; i < 64; i++) {
+      const next = yaw + Math.PI / 32;
+      if (c.turn(p, bodyFacing(next))) yaw = next;
+      if (c.penetration(p.x, p.z, bodyFacing(yaw)) > 0.02) return "轉身時插進欄杆";
+    }
+    for (let i = 0; i < 60; i++) c.move(p, o.ux * 0.15, o.uz * 0.15, bodyFacing(yaw0));
+    const along = (p.x - o.x) * o.ux + (p.z - o.z) * o.uz;
+    return along > 6 ? true : `過不了橋 along=${along.toFixed(2)}`;
   });
 }

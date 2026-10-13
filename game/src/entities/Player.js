@@ -24,6 +24,12 @@ export class Player {
     return this.root.position;
   }
 
+  // 目前面向的碰撞身體(見 BAL.player.body)
+  body() {
+    const yaw = this.root.rotation.y;
+    return { ...BAL.player.body, fx: Math.sin(yaw), fz: Math.cos(yaw) };
+  }
+
   update(dt, input, rig, collision) {
     if (!this.alive) return;
 
@@ -31,9 +37,8 @@ export class Player {
     const { x, z } = input.axes();
     if (x || z) {
       const dir = rig.moveDir(x, z);
-      const next = this.pos.clone().addScaledVector(dir, BAL.player.speed * dt);
-      collision.resolveCircle(next, this.radius);
-      this.pos.copy(next);
+      const step = BAL.player.speed * dt;
+      collision.move(this.pos, dir.x * step, dir.z * step, this.body());
     }
 
     // 單一遊戲平面：橋是視覺物件,踩上去也不會改變高度
@@ -47,7 +52,10 @@ export class Player {
       let diff = target - this.root.rotation.y;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
+      // 轉身也要過碰撞:頭尾轉進牆裡就把身體推出來,推不出來就先不轉
+      const prev = this.root.rotation.y;
       this.root.rotation.y += diff * 0.25;
+      if (!collision.turn(this.pos, this.body())) this.root.rotation.y = prev;
     }
   }
 

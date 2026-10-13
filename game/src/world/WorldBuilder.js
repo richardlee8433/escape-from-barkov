@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { BAL } from "../config/balance.js";
-import { buildGround, buildOuterGround, PATH, SIDE_PATH, RAVINE, BRIDGE_SPOT } from "./GroundPaint.js";
+import {
+  buildGround, buildOuterGround, PATH, SIDE_PATH, RAVINE, RAVINE_HALF, BRIDGE_SPOT, BRIDGE, bridgeOpening,
+} from "./GroundPaint.js";
 import { GrassField } from "./Grass.js";
 import { FlowerField } from "./Flowers.js";
 import { CAMERA_OFFSET } from "../render/CameraRig.js";
@@ -48,14 +50,39 @@ export function buildWorld(scene, assets, collision) {
     return holder;
   }
 
-  // 量出物件的實際底面積,取內接半徑並留 5% 寬容,讓碰撞貼合視覺
   const _box = new THREE.Box3();
   const _size = new THREE.Vector3();
-  function footprintRadius(holder) {
+  const _ctr = new THREE.Vector3();
+
+  // 碰撞 = 模型的實際底面輪廓。在「未旋轉」狀態量出本地包圍盒,
+  // 再依形狀登記:box(木箱、寶箱)、capsule(長形巨石、圓木)、circle(木桶、樹樁)。
+  // 舊版一律用一個圓,長形石頭的兩端可以直接穿過去。
+  function addSolid(holder, kind, opts, shrink = 1) {
+    const ry = holder.rotation.y;
+    holder.rotation.y = 0;
     holder.updateMatrixWorld(true);
-    _box.setFromObject(holder).getSize(_size);
-    return Math.min(_size.x, _size.z) * 0.5 * 0.95;
+    _box.setFromObject(holder);
+    _box.getSize(_size);
+    _box.getCenter(_ctr);
+    holder.rotation.y = ry;
+    holder.updateMatrixWorld(true);
+    const c = Math.cos(ry), s = Math.sin(ry);
+    // 本地包圍盒中心(模型不一定置中)轉到世界
+    const ox = _ctr.x - holder.position.x, oz = _ctr.z - holder.position.z;
+    const wx = holder.position.x + ox * c + oz * s;
+    const wz = holder.position.z - ox * s + oz * c;
+    const hx = (_size.x / 2) * shrink, hz = (_size.z / 2) * shrink;
+    if (kind === "box") return collision.addBox(wx, wz, ry, hx, hz, opts);
+    if (kind === "circle") return collision.addStatic(wx, wz, (hx + hz) / 2, opts);
+    // capsule:沿長軸,半徑 = 短邊的一半。本地 x 軸在世界是 (c, -s)
+    const alongX = hx >= hz;
+    const r = Math.min(hx, hz);
+    const half = Math.abs(hx - hz);
+    const ux = alongX ? c : s, uz = alongX ? -s : c;
+    return collision.addCapsule(wx - ux * half, wz - uz * half, wx + ux * half, wz + uz * half, r, opts);
   }
+  // 矮的地面雜物:擋人,不擋子彈與視線
+  const LOW = { blocksBullets: false };
 
   // 夠高、可能擋住玩家或敵人的物件登記成遮蔽體,交給相機做淡出。
   // 半徑量「視覺外接圓」而不是碰撞半徑——碰撞圓通常比模型窄(樹幹 vs 樹冠),
@@ -104,29 +131,27 @@ export function buildWorld(scene, assets, collision) {
     const S = 1.1; // 農舍按公尺建模,門高 1.85 → 放大到與角色相襯
     const house = put("cottage", cx, cz, S, ry, { dim: "scale" });
     addBoxOccluder(house, cx, cz);
-    // 牆體約 8.8 x 5.5,用 2 x 5 個圓鋪滿(擋人也擋子彈);半徑要夠大,兩排圓之間才不會留縫讓子彈穿過
-    for (const lx of [-3.3, -1.65, 0, 1.65, 3.3])
-      for (const lz of [-1.4, 1.4]) {
-        const [x, z] = W(lx * S, lz * S);
-        collision.addStatic(x, z, 1.6);
-      }
+    // 牆體(含地基石)是 8 x 5 公尺 × 1.1 的方盒:一個定向方盒貼齊牆面,
+    // 不再用一串圓(圓與圓之間會有縫,牆角也會凸出一圈看不見的牆)
+    collision.addBox(cx, cz, ry, 4.42 * S, 2.92 * S);
 
-    const prop = (name, lx, lz, h, opts, r, rot) => {
+    const prop = (name, lx, lz, h, opts, shape, collOpts, rot) => {
       const [x, z] = W(lx, lz);
       const holder = put(name, x, z, h, rot ?? Math.random() * Math.PI * 2, opts);
-      if (r) collision.addStatic(x, z, r);
+      if (shape) addSolid(holder, shape, collOpts, 0.95);
       return [holder, x, z];
     };
-    const [well, wx, wz] = prop("well", -8, 2.5, 1.0, { dim: "scale" }, 1.25, ry + 0.4);
+    const [well, wx, wz] = prop("well", -8, 2.5, 1.0, { dim: "scale" }, null, null, ry + 0.4);
+    collision.addStatic(wx, wz, 1.25); // 井口是一圈圓石
     addOccluder(well, wx, wz);
-    prop("barrel", 5.6, 3.6, 1.15, undefined, 0.5);
-    prop("barrel", 6.5, 4.3, 1.1, undefined, 0.5);
-    prop("crate", 6.2, 2.4, 0.9, undefined, 0.6, ry + 0.2);
+    prop("barrel", 5.6, 3.6, 1.15, undefined, "circle");
+    prop("barrel", 6.5, 4.3, 1.1, undefined, "circle");
+    prop("crate", 6.2, 2.4, 0.9, undefined, "box", undefined, ry + 0.2);
     prop("bush_flower", -4.6, 3.8, 1.0);
     prop("bush_flower", 3.6, 4.6, 0.85);
     prop("bush", -5.7, -2.6, 1.3);
-    prop("log", 5.8, -1.8, 2.0, { dim: "max" }, 0, ry + 1.5);
-    prop("log", 5.9, -1.2, 1.9, { dim: "max" }, 0, ry + 1.6);
+    prop("log", 5.8, -1.8, 2.0, { dim: "max" }, "capsule", LOW, ry + 1.5);
+    prop("log", 5.9, -1.2, 1.9, { dim: "max" }, "capsule", LOW, ry + 1.6);
 
     reserved.push({ x: cx, z: cz, r: 10.5 });
     homes.push({ x: cx, z: cz, ry });
@@ -156,13 +181,17 @@ export function buildWorld(scene, assets, collision) {
         const clear = [[0, 0], [0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]
           .every(([ox, oz]) => ground.isGrassAt(x + ox * fp, z + oz * fp));
         if (!clear || inReserved(x, z, fp * 0.5)) continue;
-        addOccluder(put(BIG_STONES[(Math.random() * BIG_STONES.length) | 0], x, z, fp, undefined, { dim: "max" }), x, z);
-        collision.addStatic(x, z, fp * 0.42);
+        const stone = put(BIG_STONES[(Math.random() * BIG_STONES.length) | 0], x, z, fp, undefined, { dim: "max" });
+        addOccluder(stone, x, z);
+        // 巨石是長橢圓:膠囊沿長軸,貼著輪廓(石頭頂部內收,收 8%)
+        addSolid(stone, "capsule", undefined, 0.92);
         if (Math.random() < 0.6) {
           const sx2 = x + (Math.random() - 0.5) * 3;
           const sz2 = z + (Math.random() - 0.5) * 3;
-          if (ground.isGrassAt(sx2, sz2) && !inReserved(sx2, sz2))
-            put(SMALL_STONES[(Math.random() * SMALL_STONES.length) | 0], sx2, sz2, 0.8 + Math.random() * 0.8, undefined, { dim: "max" });
+          if (ground.isGrassAt(sx2, sz2) && !inReserved(sx2, sz2)) {
+            const pebble = put(SMALL_STONES[(Math.random() * SMALL_STONES.length) | 0], sx2, sz2, 0.8 + Math.random() * 0.8, undefined, { dim: "max" });
+            addSolid(pebble, "capsule", LOW, 0.9);
+          }
         }
       }
     }
@@ -242,9 +271,9 @@ export function buildWorld(scene, assets, collision) {
           ground.isGrassAt(fx - dx * HALF_LEN, fz - dz * HALF_LEN);
         if (!onGrass) continue;
         put("fence", fx, fz, 1.0, ang + Math.PI / 2, { dim: "scale" });
-        // 一片柵欄 3.3 長,用兩個碰撞圓覆蓋整片(擋人不擋子彈)
-        collision.addStatic(fx + dx * 0.85, fz + dz * 0.85, 0.95, { blocksBullets: false });
-        collision.addStatic(fx - dx * 0.85, fz - dz * 0.85, 0.95, { blocksBullets: false });
+        // 一片柵欄 3.3 長、木料約 0.15 厚:一條細膠囊。
+        // 舊版是兩個半徑 0.95 的圓,等於在柵欄兩側各多出一公尺看不見的牆。
+        collision.addCapsule(fx - dx * 1.6, fz - dz * 1.6, fx + dx * 1.6, fz + dz * 1.6, 0.15, LOW);
       }
     }
   }
@@ -278,28 +307,18 @@ export function buildWorld(scene, assets, collision) {
     }
     bridge.position.y = BAL.world.gameplayY + 0.05 - deckTop;
 
-    // 橋兩側欄杆碰撞:走在橋上不會從側面掉進溝壑(擋人不擋子彈)。
-    // 欄杆拉到 ±2.4、半徑收到 0.45,中間留出約 2.9 寬的通道——
-    // 這是通往 EXIT 的唯一路線,窄到得瞄準才過得去就太難受了。
-    for (let a = -4.2; a <= 4.2; a += 1.2) {
-      for (const side of [-2.4, 2.4]) {
-        collision.addStatic(x + ux * a - uz * side, z + uz * a + ux * side, 0.45, { blocksBullets: false });
-      }
-    }
+    // 溝壑是一條帶狀禁區(寬度 = 畫面上深色溝底),唯一開口是橋面。
+    // 在橋上時左右被欄杆內側夾住,不會一半在橋上、一半懸在溝上。
+    collision.addRavine(RAVINE, RAVINE_HALF, [bridgeOpening()]);
 
-    // 溝壑不可通行,只留橋這個開口(擋移動、不擋子彈)。
-    // 開口半徑要大於溝壑圓半徑,否則溝壑會反過來卡住橋口。
-    for (let i = 0; i < RAVINE.length - 1; i++) {
-      const [ax, az] = RAVINE[i], [bx, bz] = RAVINE[i + 1];
-      const len = Math.hypot(bx - ax, bz - az);
-      const n = Math.ceil(len / 2);
-      for (let s = 0; s <= n; s++) {
-        const t = s / n;
-        const cx = ax + (bx - ax) * t;
-        const cz = az + (bz - az) * t;
-        if (Math.hypot(cx - x, cz - z) < 4.5) continue; // 橋面開口
-        collision.addStatic(cx, cz, 2.2, { blocksBullets: false });
-      }
+    // 欄杆本身:兩條細膠囊。溝壑以外(橋頭搭在岸上的那一段)靠它擋住側面。
+    for (const side of [-BRIDGE.railOffset, BRIDGE.railOffset]) {
+      const a = BRIDGE.halfLen - 0.15;
+      collision.addCapsule(
+        x - ux * a - uz * side, z - uz * a + ux * side,
+        x + ux * a - uz * side, z + uz * a + ux * side,
+        0.08, LOW
+      );
     }
   }
 
@@ -311,10 +330,8 @@ export function buildWorld(scene, assets, collision) {
     ];
     for (const [name, dx, dz, h] of props) {
       const holder = put(name, cx + dx, cz + dz, h);
-      // 碰撞半徑取「實際底面積」而不是高度——舊版用 h*0.65,
-      // 高的木箱會撐出一圈看不見的牆,矮的又會被穿模。
-      const r = footprintRadius(holder);
-      collision.addStatic(cx + dx, cz + dz, r);
+      // 木箱、寶箱是方的,木桶是圓的:形狀照模型,不是一律用圓
+      addSolid(holder, name === "barrel" ? "circle" : "box", undefined, 0.97);
       addOccluder(holder, cx + dx, cz + dz);
     }
   }
@@ -331,9 +348,9 @@ export function buildWorld(scene, assets, collision) {
     const p = Math.random();
     if (p < 0.38) put("bush", x, z, 0.8 + Math.random() * 0.6);
     else if (p < 0.66) put("bush_flower", x, z, 0.7 + Math.random() * 0.5);
-    else if (p < 0.8) put("rock_c", x, z, 0.6 + Math.random() * 0.7, undefined, { dim: "max" });
-    else if (p < 0.9) put("stump", x, z, 0.45 + Math.random() * 0.2);
-    else put("log", x, z, 1.6 + Math.random() * 0.6, undefined, { dim: "max" });
+    else if (p < 0.8) addSolid(put("rock_c", x, z, 0.6 + Math.random() * 0.7, undefined, { dim: "max" }), "capsule", LOW, 0.9);
+    else if (p < 0.9) addSolid(put("stump", x, z, 0.45 + Math.random() * 0.2), "circle", LOW, 0.9);
+    else addSolid(put("log", x, z, 1.6 + Math.random() * 0.6, undefined, { dim: "max" }), "capsule", LOW, 0.95);
   }
 
   // ---------- 花海(成片的藍、紫、白小花) ----------
@@ -354,16 +371,19 @@ export function buildWorld(scene, assets, collision) {
   const [ex, ez] = PATH[PATH.length - 1];
   const [px2, pz2] = PATH[PATH.length - 2];
   const exitAng = Math.atan2(ex - px2, ez - pz2);
-  // 大門柱在 ±1.9,兩側各接一片柵欄(中心 ±3.55)
-  put("gate", ex, ez, 1.0, exitAng + Math.PI / 2, { dim: "scale" });
+  // 大門橫跨路面:模型 x 軸(橫梁)轉到與路垂直的方向 side(),
+  // 門柱在 ±1.9,兩側各接一片柵欄(中心 ±3.55,長 3.3)。
+  // 旋轉 exitAng 時模型 x 軸在世界是 (cos, -sin) —— 正好是 side() 的方向。
+  put("gate", ex, ez, 1.0, exitAng, { dim: "scale" });
   const side = (d) => [ex + Math.cos(exitAng) * d, ez - Math.sin(exitAng) * d];
   for (const sgn of [-1, 1]) {
     const [fx, fz] = side(sgn * 3.55);
-    put("fence", fx, fz, 1.0, exitAng + Math.PI / 2, { dim: "scale" });
-    for (const d of [1.9, 2.8, 4.4]) {
-      const [cx, cz] = side(sgn * d);
-      collision.addStatic(cx, cz, d === 1.9 ? 0.35 : 0.8, { blocksBullets: false });
-    }
+    put("fence", fx, fz, 1.0, exitAng, { dim: "scale" });
+    const [px, pz] = side(sgn * 1.9);
+    collision.addStatic(px, pz, 0.22, LOW);
+    const [ax, az] = side(sgn * 1.9);
+    const [bx, bz] = side(sgn * 5.2);
+    collision.addCapsule(ax, az, bx, bz, 0.15, LOW);
   }
 
   // EXIT 招牌

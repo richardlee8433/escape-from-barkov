@@ -80,7 +80,7 @@ screens.onStart(async (onProgress) => {
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud }; // Console 檢查用
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision }; // Console 檢查用
 
   game.start();
   hud.show();

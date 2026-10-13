@@ -74,15 +74,21 @@ export class Spawner {
     for (const en of this.enemies) {
       en.update(dt, player.pos, diff, this.collision, combat);
     }
+    // 推擠前記下合法位置:推擠完解不開(被擠進石縫)就退回原位
+    const safe = this.enemies.map((e) => [e.pos.x, e.pos.z]);
     for (let i = 0; i < this.enemies.length; i++) {
       for (let j = i + 1; j < this.enemies.length; j++) {
         this.collision.separatePair(this.enemies[i], this.enemies[j]);
       }
       this.collision.pushAway(player.pos, this.enemies[i], E.playerPushDist);
-      // 推擠完解一次靜態碰撞,避免被擠進石頭/樹裡
-      this.collision.resolveCircle(this.enemies[i].pos, this.enemies[i].hitR * 0.8);
-      this.enemies[i].pos.y = BAL.world.gameplayY;
     }
+    this.enemies.forEach((en, i) => {
+      if (!this.collision.resolveCircle(en.pos, en.hitR * 0.8)) {
+        en.pos.x = safe[i][0];
+        en.pos.z = safe[i][1];
+      }
+      en.pos.y = BAL.world.gameplayY;
+    });
   }
 
   nearestItem(pos, range) {

@@ -59,7 +59,8 @@ v0.3.5.html      Legacy v0.3.5 single-file version (kept for reference)
 - **Event bus** — systems never call each other directly; enemies emit `enemy:died`, and loot drops, SFX, kill counters, and the HUD each subscribe independently.
 - **Fixed timestep** — logic ticks at a constant 60 Hz regardless of frame rate.
 - **Data-driven balance** — every speed, range, drop rate, and difficulty curve lives in `game/src/config/balance.js`.
-- **Measured, not assumed** — the bridge walk height is raycast-sampled from the actual model, and collision radii derive from real mesh footprints.
+- **Measured, not assumed** — the bridge walk height is raycast-sampled from the actual model, and every collider is measured from the model's real footprint.
+- **Collision that matches the visuals** — obstacles are circles, capsules (fences, rails, long boulders, logs) or rotated boxes (cottages, crates), backed by a spatial hash. The ravine is a band exactly as wide as its painted dark floor, with the bridge deck as the only opening, so the corgi can never be half on the bridge and half over the drop. The corgi itself collides as a capsule that follows its facing (nose and tail included), and every move/turn either resolves cleanly or falls back to sliding/staying put, so characters never end up wedged inside rocks.
 
 ## Environment assets (Blender pipeline)
 
