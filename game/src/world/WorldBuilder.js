@@ -2,11 +2,11 @@ import * as THREE from "three";
 import { BAL } from "../config/balance.js";
 import {
   buildGround, PATH, SIDE_PATH, RAVINE, RAVINE_HALF, BRIDGE_SPOT, BRIDGE, bridgeOpening,
-  ravineDistance, WATER_Y, FLOOR_HALF,
+  ravineDistance, WATER_Y, terrainHeight, lakeSDF, LAKE_BOUNDS, LAKE_CIRCLES, STREAM_BOUNDS,
 } from "./GroundPaint.js";
 import { GrassField } from "./Grass.js";
 import { FlowerField } from "./Flowers.js";
-import { River } from "./River.js";
+import { Water, FishSchool } from "./Water.js";
 import { CAMERA_OFFSET } from "../render/CameraRig.js";
 
 // 把整張地圖搭出來：光、地面、草、石牆、樹、營地、橋、出口。
@@ -39,7 +39,19 @@ export function buildWorld(scene, assets, collision) {
   const ground = buildGround();
   scene.add(ground.mesh);
   const grass = new GrassField(scene, ground.isGrassAt, ground.colorAt);
-  const river = new River(scene);
+
+  // ---------- 水:溪流與地圖南緣的淺水湖 ----------
+  // 兩者共用水位,水面透明、白沫依實際深度長在岸邊與障礙物周圍(見 Water.js)
+  const stream = new Water(scene, {
+    bounds: STREAM_BOUNDS, level: WATER_Y, ground: terrainHeight, flow: [0, 1.2],
+    shallow: 0x3fd9c6, deep: 0x16889a,
+  });
+  const lake = new Water(scene, {
+    bounds: LAKE_BOUNDS, level: WATER_Y, ground: terrainHeight,
+    shallow: 0x45dcc9, deep: 0x1576a6,
+  });
+  // 湖岸是禁區:整個身體都要留在沙灘上
+  collision.addArea(lakeSDF, LAKE_BOUNDS);
 
   // ---------- 擺放工具 ----------
   function put(name, x, z, target, ry = Math.random() * Math.PI * 2, opts = {}) {
@@ -313,6 +325,13 @@ export function buildWorld(scene, assets, collision) {
     // 在橋上時左右被欄杆內側夾住,不會一半在橋上、一半懸在溝上。
     collision.addRavine(RAVINE, RAVINE_HALF, [bridgeOpening()]);
 
+    // 橋墩木樁:在水面高度圖上蓋小圓丘,白沫會繞著木樁長出來
+    for (const a of [-1.6, 1.6]) {
+      for (const side of [-1.55, 1.55]) {
+        stream.addObstacle(x + ux * a - uz * side, z + uz * a + ux * side, 0.22, 0.3);
+      }
+    }
+
     // 欄杆本身:兩條細膠囊。溝壑以外(橋頭搭在岸上的那一段)靠它擋住側面。
     for (const side of [-BRIDGE.railOffset, BRIDGE.railOffset]) {
       const a = BRIDGE.halfLen - 0.15;
@@ -324,7 +343,8 @@ export function buildWorld(scene, assets, collision) {
     }
   }
 
-  // ---------- 河裡的石頭(半露出水面,純視覺) ----------
+  // ---------- 水裡與岸邊的石頭 ----------
+  // 水裡的石頭坐在河床/湖底上,露出水面的部分會被蓋進高度圖 → 自動繞一圈白沫
   {
     const centerX = (z) => {
       for (let i = 0; i < RAVINE.length - 1; i++) {
@@ -334,26 +354,67 @@ export function buildWorld(scene, assets, collision) {
       return RAVINE[0][0];
     };
     const wetMats = new Map();
-    for (let i = 0; i < 46; i++) {
-      const z = (Math.random() - 0.5) * 200;
-      if (Math.abs(z - BRIDGE_SPOT.z) < 4) continue;
-      const x = centerX(z) + (Math.random() - 0.5) * 2 * FLOOR_HALF;
-      const size = 0.6 + Math.random() * 1.1;
+    const placeInWater = (water, x, z, size) => {
       const rock = put(Math.random() < 0.6 ? "rock_c" : "rock_b", x, z, size, undefined, { dim: "max" });
-      rock.position.y = WATER_Y - 0.15 - Math.random() * size * 0.25;
-      // 溝底光線暗、石頭是濕的:換成壓暗的材質(每種原始材質只複製一次)
+      rock.position.y = terrainHeight(x, z) - size * 0.18;
+      rock.updateMatrixWorld(true);
+      _box.setFromObject(rock).getSize(_size);
+      water.addObstacle(x, z, Math.min(_size.x, _size.z) * 0.5, _box.max.y);
+      // 濕石頭:顏色略深、比較亮滑(每種原始材質只複製一次)
       rock.traverse((m) => {
         if (!m.isMesh) return;
         if (!wetMats.has(m.material)) {
           const wet = m.material.clone();
-          wet.color = new THREE.Color(0.5, 0.52, 0.5);
-          wet.roughness = 0.45;
+          wet.color = new THREE.Color(0.78, 0.8, 0.78);
+          wet.roughness = 0.5;
           wetMats.set(m.material, wet);
         }
         m.material = wetMats.get(m.material);
       });
+    };
+    for (let i = 0; i < 46; i++) {
+      const z = (Math.random() - 0.5) * 200;
+      if (Math.abs(z - BRIDGE_SPOT.z) < 4) continue;
+      const x = centerX(z) + (Math.random() - 0.5) * 2 * (RAVINE_HALF - 0.8);
+      placeInWater(stream, x, z, 0.5 + Math.random() * 1.0);
+    }
+    for (let i = 0, n = 0; i < 200 && n < 16; i++) {
+      const x = LAKE_BOUNDS.x0 + Math.random() * (LAKE_BOUNDS.x1 - LAKE_BOUNDS.x0);
+      const z = LAKE_BOUNDS.z0 + Math.random() * (LAKE_BOUNDS.z1 - LAKE_BOUNDS.z0);
+      const sd = lakeSDF(x, z);
+      if (sd > -1.0 || z < -96) continue;
+      // 靠岸的石頭大一點、露出水面;湖中央的小,大多沉在水下
+      placeInWater(lake, x, z, sd > -4 ? 1.0 + Math.random() * 1.2 : 0.6 + Math.random() * 0.8);
+      n++;
+    }
+    // 沙灘上的石頭(擋人不擋子彈)
+    for (let i = 0, n = 0; i < 200 && n < 8; i++) {
+      const x = LAKE_BOUNDS.x0 + Math.random() * (LAKE_BOUNDS.x1 - LAKE_BOUNDS.x0);
+      const z = -80 + Math.random() * 24;
+      const sd = lakeSDF(x, z);
+      if (sd < 1.2 || sd > 3.5 || !collision.isFree(x, z, 1.2)) continue;
+      addSolid(put(Math.random() < 0.5 ? "rock_b" : "rock_a", x, z, 1.0 + Math.random() * 1.0, undefined, { dim: "max" }),
+        "capsule", LOW, 0.9);
+      n++;
     }
   }
+  stream.finalize();
+  lake.finalize();
+
+  // 湖裡的魚影:路線要整圈都在夠深的地方(離岸 4 公尺以上),才不會游進沙灘
+  const fishPaths = [];
+  for (let i = 0; i < 400 && fishPaths.length < 14; i++) {
+    const [cx, cz, cr] = LAKE_CIRCLES[(Math.random() * LAKE_CIRCLES.length) | 0];
+    const x = cx + (Math.random() - 0.5) * cr, z = cz + (Math.random() - 0.5) * cr;
+    const r = 1.5 + Math.random() * 4;
+    let ok = true;
+    for (let k = 0; k < 16 && ok; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      ok = lakeSDF(x + Math.cos(a) * r, z + Math.sin(a) * r) < -4;
+    }
+    if (ok) fishPaths.push({ x, z, r, speed: 0.6 + Math.random() * 0.8, phase: Math.random() * 6.28, dir: Math.random() < 0.5 ? 1 : -1 });
+  }
+  const fish = new FishSchool(scene, fishPaths, WATER_Y - 0.4);
 
   // ---------- 木箱營地 ----------
   function camp(cx, cz) {
@@ -396,7 +457,8 @@ export function buildWorld(scene, assets, collision) {
     // 方形地圖:沿方形外圈取點
     const x = Math.max(-ring, Math.min(ring, Math.cos(a) * ring * 1.5));
     const z = Math.max(-ring, Math.min(ring, Math.sin(a) * ring * 1.5));
-    if (ravineDistance(x, z) < RAVINE_HALF + 3) continue; // 不要長進延伸到界外的溝裡
+    if (ravineDistance(x, z) < RAVINE_HALF + 3) continue; // 不要長進延伸到界外的溪流
+    if (lakeSDF(x, z) < 5) continue;                      // 也不要長在湖裡或沙灘上
     const t = TREES[(Math.random() * TREES.length) | 0];
     put(t.name, x, z, t.h[0] + Math.random() * (t.h[1] - t.h[0]) * 1.2);
   }
@@ -454,7 +516,15 @@ export function buildWorld(scene, assets, collision) {
   return {
     followSun,
     grass,
-    river,
+    // 水面、水底光紋、魚影都跟著時間動
+    updateWater(t) {
+      stream.setTime(t);
+      lake.setTime(t);
+      ground.setTime(t);
+      fish.update(t);
+    },
+    stream,
+    lake,
     occluders,
     isGrassAt: ground.isGrassAt,
     playerStart,

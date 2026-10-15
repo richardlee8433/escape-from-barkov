@@ -2,6 +2,7 @@ import { BAL } from "../src/config/balance.js";
 import { Collision } from "../src/systems/Collision.js";
 import {
   RAVINE, RAVINE_HALF, BRIDGE, bridgeOpening, terrainHeight, ravineDistance, WATER_Y, RAVINE_DEPTH,
+  lakeSDF, LAKE_BOUNDS, LAKE_CIRCLES,
 } from "../src/world/GroundPaint.js";
 import { suite, check, eq } from "./harness.js";
 
@@ -422,5 +423,67 @@ export function run() {
       if (terrainHeight(x, z) !== 0) return `橋端 (${x}, ${z}) 懸在溝上`;
     }
     return true;
+  });
+
+  suite("淺水湖");
+
+  const lakeWorld = () => {
+    const c = new Collision();
+    c.addArea(lakeSDF, LAKE_BOUNDS);
+    return c;
+  };
+
+  check("湖岸以外(可以站的地方)地形一律是平地", () => {
+    const B = LAKE_BOUNDS;
+    for (let x = B.x0; x <= B.x1; x += 0.31) {
+      for (let z = B.z0; z <= B.z1; z += 0.29) {
+        if (lakeSDF(x, z) >= 0 && ravineDistance(x, z) >= RAVINE_HALF && terrainHeight(x, z) !== 0) {
+          return `(${x.toFixed(2)}, ${z.toFixed(2)}) 在岸上卻高度 ${terrainHeight(x, z)}`;
+        }
+      }
+    }
+    return true;
+  });
+
+  check("湖中央在水面以下,而且有一部分在地圖界內看得到", () => {
+    const [cx, cz] = LAKE_CIRCLES[0];
+    if (!(terrainHeight(cx, cz) < WATER_Y - 0.8)) return `湖心 ${terrainHeight(cx, cz)} 太淺`;
+    // 湖的北岸在界內(玩家可以走到)
+    let north = -Infinity;
+    for (let z = LAKE_BOUNDS.z0; z <= LAKE_BOUNDS.z1; z += 0.1) if (lakeSDF(cx, z) < 0) north = z;
+    return north > -BOUND + 5 ? true : `北岸 z=${north.toFixed(1)} 不在可走範圍內`;
+  });
+
+  check("往湖裡走會停在岸上,整個身體都不會進水", () => {
+    const c = lakeWorld();
+    const [cx] = LAKE_CIRCLES[0];
+    const p = v(cx, -50);
+    for (let i = 0; i < 200; i++) c.move(p, 0, -0.15, R); // 一路往南衝向湖
+    const sd = lakeSDF(p.x, p.z);
+    return sd >= R - 0.02 && p.z < -55 ? true : `停在 z=${p.z.toFixed(2)},離水 ${sd.toFixed(2)}`;
+  });
+
+  check("沿著湖岸亂走 3000 步,不會進水也不會卡住", () => {
+    const c = lakeWorld();
+    const p = v(-14, -60);
+    c.resolveCircle(p, R);
+    let seed = 2024;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    let moved = 0;
+    for (let i = 0; i < 3000; i++) {
+      const a = rnd() * Math.PI * 2;
+      const bx = p.x, bz = p.z;
+      c.move(p, Math.cos(a) * 0.3, Math.sin(a) * 0.3, R);
+      moved += Math.hypot(p.x - bx, p.z - bz);
+      if (p.z < -75 || p.z > -50) { p.x = -14; p.z = -60; }  // 集中在湖岸附近
+      if (lakeSDF(p.x, p.z) < R - 0.03) return `第 ${i} 步進水 (${p.x.toFixed(2)}, ${p.z.toFixed(2)})`;
+    }
+    return moved > 300 ? true : `幾乎走不動,只移動了 ${moved.toFixed(0)}`;
+  });
+
+  check("湖裡不能生成東西", () => {
+    const c = lakeWorld();
+    const [cx, cz] = LAKE_CIRCLES[0];
+    return eq(c.isFree(cx, cz, 0.5), false);
   });
 }

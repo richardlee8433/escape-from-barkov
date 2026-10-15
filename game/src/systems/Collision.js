@@ -124,7 +124,7 @@ function segmentsIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
 export class Collision {
   constructor() {
     this.statics = []; // 所有形狀共有 { kind, x, z, r(外接半徑), blocksBullets, blocksSight }
-    this.ravines = [];
+    this.zones = []; // 帶狀/區域禁區(溪流、湖):{ contact(x, z, r) → { pen, nx, nz } | null }
     this._grid = new Map();
     this._stamp = 0;
   }
@@ -160,7 +160,26 @@ export class Collision {
   // openings:[{ x, z, ux, uz, halfLen, halfWidth }] —— 橋面,沿 (ux,uz) 方向通行,
   // halfWidth 是欄杆內側到橋中線的距離。擋移動,不擋子彈與視線。
   addRavine(points, halfWidth, openings = []) {
-    this.ravines.push({ points, halfWidth, openings });
+    const rv = { points, halfWidth, openings };
+    this.zones.push({ contact: (x, z, r) => this._ravineContact(rv, x, z, r) });
+  }
+
+  // 任意形狀的禁區(湖):sdf(x, z) = 到岸線的有號距離,水裡為負。
+  // 整個身體都要留在岸上(sdf ≥ r)。bounds 之外直接略過,省下雜訊計算。
+  // 擋移動,不擋子彈與視線。
+  addArea(sdf, bounds) {
+    this.zones.push({
+      contact: (x, z, r) => {
+        if (bounds && (x < bounds.x0 - r || x > bounds.x1 + r || z < bounds.z0 - r || z > bounds.z1 + r)) return null;
+        const d = sdf(x, z);
+        if (d >= r) return null;
+        const e = 0.05;
+        const gx = sdf(x + e, z) - sdf(x - e, z);
+        const gz = sdf(x, z + e) - sdf(x, z - e);
+        const L = Math.hypot(gx, gz) || 1;
+        return { pen: r - d, nx: gx / L, nz: gz / L };
+      },
+    });
   }
 
   _add(s, { blocksBullets = true, blocksSight = blocksBullets } = {}) {
@@ -258,8 +277,8 @@ export class Collision {
         const pen = r - contact(s, px, pz).d;
         if (pen > worst) worst = pen;
       }
-      for (const rv of this.ravines) {
-        const c = this._ravineContact(rv, px, pz, r);
+      for (const zn of this.zones) {
+        const c = zn.contact(px, pz, r);
         if (c && c.pen > worst) worst = c.pen;
       }
     }
@@ -289,8 +308,8 @@ export class Collision {
             if (pen > maxPen) maxPen = pen;
           }
         }
-        for (const rv of this.ravines) {
-          const c = this._ravineContact(rv, pos.x + body.fx * o, pos.z + body.fz * o, r);
+        for (const zn of this.zones) {
+          const c = zn.contact(pos.x + body.fx * o, pos.z + body.fz * o, r);
           if (c && c.pen > EPS) {
             pos.x += c.nx * c.pen;
             pos.z += c.nz * c.pen;

@@ -75,7 +75,7 @@ screens.onStart(async (onProgress) => {
       ]);
       world.followSun(player.pos);
       world.grass.setTime(t);
-      world.river.setTime(t);
+      world.updateWater(t);
       spawner.updateItems(t);
       vfx.frame(dt, game.camera, new Set(spawner.enemies));
     },

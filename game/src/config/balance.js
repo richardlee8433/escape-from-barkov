@@ -1,6 +1,6 @@
 // 所有遊戲平衡數值集中在這裡。
 // 世界尺度：170x170，角色高約 2（舊版是 1000x1000 / 角色高 30，數值已按比例重調）。
-export const VERSION = "v0.6.2";
+export const VERSION = "v0.7.0";
 
 export const BAL = {
   // gameplayY：唯一的遊戲平面。所有移動、生成、掉落、出口都貼在這個高度，
