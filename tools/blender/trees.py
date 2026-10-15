@@ -21,7 +21,7 @@ import random
 import bpy
 import bmesh
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from lib import Asset, finish_object
 
@@ -131,7 +131,7 @@ def _leaf(img, base, ang, L, W, rgb, rng):
     u = (dx * ca + dy * sa) / L          # 0 = 葉柄, 1 = 葉尖
     v = -dx * sa + dy * ca               # 橫向(像素)
     uc = np.clip(u, 0, 1)
-    half = (W / 2) * np.sin(np.pi * uc) ** 0.7 * (1.08 - 0.3 * uc)
+    half = (W / 2) * np.maximum(np.sin(np.pi * uc), 0.0) ** 0.7 * (1.08 - 0.3 * uc)
     inside = (u > 0.02) & (u < 1)
     dist = half - np.abs(v)
     alpha = np.clip(dist + 0.5, 0, 1) * inside
@@ -155,9 +155,9 @@ def _image(name, arr):
     return img
 
 
-def broadleaf_texture(seed, res=512):
+def broadleaf_texture(seed, res=512, tone=(1.0, 1.0, 1.0)):
     """一小枝闊葉:葉柄從下緣中央往上,左右互生、頂端一簇。"""
-    key = ("broad", seed, res)
+    key = ("broad", seed, res, tone)
     if key in _TEX:
         return _TEX[key]
     rng = random.Random(seed)
@@ -171,7 +171,7 @@ def broadleaf_texture(seed, res=512):
         c = dark + (mid - dark) * min(1, t * 2) if t < 0.5 else mid + (light - mid) * (t - 0.5) * 2
         if rng.random() < 0.12:
             c = c * 0.6 + np.array((0.5, 0.52, 0.18)) * 0.4  # 偶爾一片偏黃
-        return c * rng.uniform(0.92, 1.08)
+        return c * rng.uniform(0.92, 1.08) * np.asarray(tone)
 
     # 三根小枝從下緣中央往上散開,每根左右互生小葉、頂端一簇(葉子約 15~20 公分,不會大得像芭蕉)
     leaves = []
@@ -548,4 +548,111 @@ def build_conifer(name, seed, height=7.0):
 
     print(f"[trees] {name}: {len(cards.cards)} leaf cards")
     _store(name, cards, needle_texture(seed), normal_fn, shade_fn)
+    return finish_object(a.to_object())
+
+
+# ================================================================ 灌木
+
+def build_shrub(name, seed, flowers=False, height=1.0):
+    """矮灌木:地面冒出幾根木質莖、往外分岔,葉片填滿一個扁圓的樹冠;開花的品種在外層探出小花。"""
+    from lib import blob  # 花朵沿用一般網格,跟枝條一起烘焙
+
+    rng = random.Random(seed)
+    a = Asset(name)
+    branches = []
+    nstem = rng.choice((5, 6, 7))
+    for k in range(nstem):
+        az = k * 2 * math.pi / nstem + rng.uniform(-0.4, 0.4)
+        tilt = math.radians(rng.uniform(22, 50))
+        d = Vector((math.sin(tilt) * math.cos(az), math.sin(tilt) * math.sin(az), math.cos(tilt)))
+        p0 = Vector((rng.uniform(-0.08, 0.08), rng.uniform(-0.08, 0.08), -0.05))
+        # 分岔時主軸會一路延續,整根莖約長到 2 倍 L,所以 L 只取高度的三成
+        _grow(rng, branches, p0, d, height * rng.uniform(0.27, 0.34), 0.028, 2, 4)
+    for pts, radii, level in branches:
+        a.add(tube(pts, radii, {2: 5, 3: 4, 4: 3}[level]), "bark")
+
+    # 樹冠範圍照實際長出來的枝條算(葉片才會剛好包住枝條)
+    tips = [p for pts, _, lv in branches if lv >= 3 for p in pts[1:]]
+    top_z = max(p.z for p in tips)
+    cen = Vector((0, 0, top_z * 0.5))
+    rad = Vector((max(abs(p.x) for p in tips) + 0.15 * height, max(abs(p.y) for p in tips) + 0.15 * height,
+                  top_z * 0.5 + 0.1 * height))
+
+    def outward(p):
+        return Vector(((p.x - cen.x) / rad.x, (p.y - cen.y) / rad.y, (p.z - cen.z) / rad.z))
+
+    cards = Cards()
+
+    def tint():
+        return (rng.uniform(0.92, 1.1), rng.uniform(0.95, 1.1), rng.uniform(0.85, 1.0))
+
+    def leaf_at(p, tang, size):
+        o = outward(p)
+        o = o.normalized() if o.length > 1e-3 else Vector((0, 0, 1))
+        ldir = (tang * 0.35 + o * 0.65 + _rand_unit(rng) * 0.45).normalized()
+        nrm = (o + _rand_unit(rng) * 0.9).normalized()
+        if abs(nrm.dot(ldir)) > 0.95:
+            nrm = _perp(ldir)
+        cards.add(p, ldir, nrm, size, droop=0.05, tint=tint())
+
+    for pts, _, level in branches:
+        if level < 3:
+            continue
+        for p, q in zip(pts[1:], pts[:-1]):
+            leaf_at(p, (p - q).normalized(), rng.uniform(0.38, 0.52) * height)
+    for _ in range(230):
+        u = _rand_unit(rng)
+        if u.z < -0.55:
+            continue  # 底部貼地,不用葉子
+        p = cen + Vector((u.x * rad.x, u.y * rad.y, u.z * rad.z)) * rng.uniform(0.3, 0.75) ** 0.5
+        if p.z < 0.08:
+            continue
+        leaf_at(p, u, rng.uniform(0.36, 0.5) * height)
+
+    if flowers:
+        # 小花:五片花瓣 + 黃色花心,朝外貼在樹冠上半部;白花與粉花混著開
+        # 花開在最外層葉叢的尖端(放在樹冠表面的話會被伸出來的葉子蓋住)
+        tips = []
+        for vs, _, _ in cards.cards:
+            tip = (vs[2] + vs[3]) / 2
+            o = outward(tip)
+            if o.length > 0.95 and o.z > -0.15:
+                tips.append(tip)
+        rng.shuffle(tips)
+        for p in tips[:40]:
+            nrm = outward(p).normalized()
+            r = 0.065 * height * rng.uniform(0.85, 1.15)
+            pink = rng.random() < 0.45
+            pet = (1.0, 0.62, 0.74) if pink else (1.0, 0.98, 0.94)
+            q = Vector((0, 0, 1)).rotation_difference(nrm).to_matrix()
+            spin = rng.uniform(0, 2 * math.pi)
+            for k in range(5):
+                ang = spin + k * 2 * math.pi / 5
+                c = Vector((math.cos(ang), math.sin(ang), 0)) * r * 0.55
+                petal = blob(r * 0.5, 1, (1.0, 0.62, 0.22), loc=(0, 0, 0), amp=0.0, freq=1, seed=0)
+                rot = Matrix.Rotation(ang, 3, "Z")
+                bmesh.ops.rotate(petal, cent=Vector(), matrix=rot, verts=petal.verts)
+                bmesh.ops.translate(petal, vec=c, verts=petal.verts)
+                bmesh.ops.rotate(petal, cent=Vector(), matrix=q, verts=petal.verts)
+                bmesh.ops.translate(petal, vec=p, verts=petal.verts)
+                a.add(petal, "petal", tint=tuple(x * rng.uniform(0.95, 1.0) for x in pet))
+            center = blob(r * 0.28, 1, (1, 1, 0.6), loc=(0, 0, 0), amp=0.0, freq=1, seed=0)
+            bmesh.ops.rotate(center, cent=Vector(), matrix=q, verts=center.verts)
+            bmesh.ops.translate(center, vec=p + nrm * r * 0.08, verts=center.verts)
+            a.add(center, "petal", tint=(1.0, 0.78, 0.2))
+
+    def normal_fn(v, n):
+        o = outward(v)
+        o = o.normalized() if o.length > 1e-3 else Vector((0, 0, 1))
+        if n.dot(o) < 0:
+            n = -n
+        return (n * 0.25 + o * 0.75).normalized()
+
+    def shade_fn(v):
+        e = min(1.0, outward(v).length)
+        return (0.55 + 0.45 * e ** 1.3) * (0.8 + 0.2 * min(1.0, v.z / max(0.3, top_z)))
+
+    print(f"[trees] {name}: {len(cards.cards)} leaf cards")
+    # 灌木葉色偏藍綠、比草地深一階,才不會跟草融在一起
+    _store(name, cards, broadleaf_texture(seed + 100, tone=(0.88, 1.08, 1.0)), normal_fn, shade_fn)
     return finish_object(a.to_object())

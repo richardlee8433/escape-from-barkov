@@ -89,7 +89,7 @@ Water plants — reeds with cattails along the banks, waterweed swaying on the s
 
 ## Environment assets (Blender pipeline)
 
-Every environment model — thatched cottages, well, conifer & broadleaf trees, mossy rocks, bushes, fence, gate, bridge, barrels, crates, chest, stumps, logs — is generated **procedurally in Blender** by `tools/blender/`. Each asset is modeled from code, shaded with procedural node materials (straw, plaster, timber, stone, bark, foliage…), then Cycles bakes **color × ambient occlusion** and a **tangent-space normal map** into textures, and the result is exported as GLB. The game gets near-offline-render shading at real-time cost.
+Every environment model — thatched cottages, well, spruce & broadleaf trees, shrubs, mossy rocks, fence, gate, bridge, barrels, crates, chest, stumps, logs — is generated **procedurally in Blender** by `tools/blender/`. Each asset is modeled from code, shaded with procedural node materials (straw, plaster, timber, stone, bark, foliage…), then Cycles bakes **color × ambient occlusion** and a **tangent-space normal map** into textures, and the result is exported as GLB. The game gets near-offline-render shading at real-time cost.
 
 ```bash
 pip install bpy==5.2.2                      # Blender as a Python module (Python 3.13)
@@ -106,9 +106,9 @@ python tools/blender/render_preview.py      # → docs/blender_preview.jpg (Cycl
 | `materials.py` | procedural materials |
 | `assets.py` | one builder per asset + the asset table (texture size, AO distance, bake groups) |
 | `characters.py` | corgi & duck: modeling, bone layout and animation clips |
-| `trees.py` | trees: branching skeleton + alpha-cutout leaf cards with procedurally painted leaf / needle textures |
+| `trees.py` | trees & shrubs: branching skeleton + alpha-cutout leaf cards with procedurally painted leaf / needle textures |
 
-**Trees** are built like real ones instead of a blob canopy: a trunk with root flare splits into limbs and twigs (spruces get whorls of drooping branches), and the foliage is hundreds of leaf cards — quads textured with a leaf spray painted procedurally in numpy, cut out with alpha test in game (so their shadows are dappled too). The card normals point out from the crown center and a vertex color darkens the inside of the crown, so the canopy shades as one volume; while baking the bark, a shrunken copy of the leaves occludes the branches inside the crown. A small shader tweak raises the alpha with the mip level so distant trees don't go bald.
+**Trees** are built like real ones instead of a blob canopy: a trunk with root flare splits into limbs and twigs (spruces get whorls of drooping branches), and the foliage is hundreds of leaf cards — quads textured with a leaf spray painted procedurally in numpy, cut out with alpha test in game (so their shadows are dappled too). The card normals point out from the crown center and a vertex color darkens the inside of the crown, so the canopy shades as one volume; while baking the bark, a shrunken copy of the leaves occludes the branches inside the crown. A small shader tweak raises the alpha with the mip level so distant trees don't go bald. Shrubs use the same recipe: woody stems from the ground, a crown of smaller blue-green leaf cards, and on the flowering ones five-petal white and pink blossoms on the outermost sprays.
 
 ## Credits
 

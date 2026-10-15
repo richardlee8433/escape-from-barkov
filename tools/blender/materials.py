@@ -176,31 +176,6 @@ def bark(nb):
     return dict(color=base, height=height, bump=0.7, bump_dist=0.03, rough=0.95, ao=0.9)
 
 
-def _foliage(nb, dark, mid, light, clump=7.0):
-    o = nb.coord("Object")
-    nz = nb.sep(nb.geo("Normal"))["Z"]
-    # 葉團:voronoi 小圓丘(中心亮、邊緣暗)+ 細葉雜訊
-    co = nb.node("ShaderNodeVectorMath", operation="ADD")
-    nb.put(co.inputs[0], o)
-    nb.put(co.inputs[1], nb.mapping(nb.noise(o, 1.2, 2, 0.5, out="Color"), scale=(0.25, 0.25, 0.25)))
-    cl = nb.voronoi(co.outputs[0], clump, "F1", "Distance")
-    leaf = nb.noise(o, 28, 5, 0.65)
-    big = nb.noise(o, 0.7, 3, 0.5)
-    t = nb.math("ADD", nb.remap(nz, -0.6, 0.9, 0.0, 0.62), nb.remap(cl, 0.15, 0.75, 0.16, -0.14))
-    t = nb.math("ADD", t, nb.remap(leaf, 0.3, 0.7, -0.07, 0.07))
-    t = nb.math("ADD", t, nb.remap(big, 0.35, 0.65, -0.12, 0.12))
-    base = nb.ramp(t, [(0.05, srgb(dark)), (0.45, srgb(mid)), (0.85, srgb(light))])
-    base = nb.mul(base, nb.attr("col"))
-    height = nb.math("ADD", nb.math("MULTIPLY", cl, -1.0), nb.math("MULTIPLY", leaf, 0.35))
-    return base, height
-
-
-@material("foliage_bush")
-def foliage_bush(nb):
-    c, h = _foliage(nb, "#1f3a16", "#3f672c", "#7ea24b", 4.0)
-    return dict(color=c, height=h, bump=0.6, bump_dist=0.03, rough=0.95, ao=0.9)
-
-
 @material("petal")
 def petal(nb):
     o = nb.coord("Object")

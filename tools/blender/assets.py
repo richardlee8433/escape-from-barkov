@@ -74,33 +74,7 @@ def build_rock(name, seed, scale):
     return finish_object(a.to_object())
 
 
-# ================================================================ 灌木、樹樁、木頭(樹在 trees.py)
-
-def build_bush(name, seed, flowers=True):
-    rng = random.Random(seed)
-    a = Asset(name)
-    lumps = []
-    for i in range(6):
-        ang = i * 1.05 + rng.uniform(-0.3, 0.3)
-        d = rng.uniform(0.15, 0.4)
-        lumps.append(blob(rng.uniform(0.4, 0.55), 3, (1, 1, 0.85),
-                          loc=(math.cos(ang) * d, math.sin(ang) * d, 0.45 + rng.uniform(-0.05, 0.12)),
-                          amp=0.12, freq=2.2, seed=seed + i))
-    fol = _remesh_decimate(merge(*lumps), 0.04, 1300, 2)
-    for v in fol.verts:
-        if v.co.z < 0.05:
-            v.co.z = 0.05 + (v.co.z - 0.05) * 0.2
-    displace(fol, 0.03, 6.0, seed)
-    _drop_to_ground(fol, 0.05)
-    surf = [v.co.copy() for v in fol.verts if v.normal.z > -0.1 and v.co.z > 0.25]
-    a.add(fol, "foliage_bush")
-    if flowers:
-        for _ in range(42):
-            p = rng.choice(surf)
-            head = blob(0.055, 1, (1, 1, 0.7), loc=p * 1.02, amp=0.2, freq=3, seed=rng.random() * 50)
-            a.add(head, "petal", tint=(1.0, 1.0, rng.uniform(0.9, 1.0)))
-    return finish_object(a.to_object())
-
+# ================================================================ 樹樁、木頭(樹與灌木在 trees.py)
 
 def build_stump(name, seed):
     a = Asset(name)
@@ -600,7 +574,7 @@ def build_dig_mound(name, seed):
 
 # ================================================================ 清單
 
-from trees import add_leaves, build_broadleaf, build_conifer  # noqa: E402
+from trees import add_leaves, build_broadleaf, build_conifer, build_shrub  # noqa: E402
 from characters import build_corgi, build_duck, rig_corgi, rig_duck  # noqa: E402
 
 ASSETS = {
@@ -617,8 +591,8 @@ ASSETS = {
     "rock_a": (build_rock, dict(seed=31, scale=(1.0, 0.8, 0.55)), 1024, 0.6),
     "rock_b": (build_rock, dict(seed=32, scale=(1.0, 0.9, 0.75)), 1024, 0.6),
     "rock_c": (build_rock, dict(seed=33, scale=(1.0, 0.55, 0.45)), 1024, 0.6),
-    "bush_flower": (build_bush, dict(seed=41, flowers=True), 512, 0.4),
-    "bush": (build_bush, dict(seed=42, flowers=False), 512, 0.4),
+    "bush_flower": (build_shrub, dict(seed=41, flowers=True), 512, 0.4, None, {"post_bake": add_leaves}),
+    "bush": (build_shrub, dict(seed=42, flowers=False), 512, 0.4, None, {"post_bake": add_leaves}),
     "stump": (build_stump, dict(seed=51), 512, 0.4),
     "log": (build_log, dict(seed=52), 512, 0.4),
     "fence": (build_fence, dict(seed=61), 512, 0.4),
