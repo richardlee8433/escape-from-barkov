@@ -6,7 +6,7 @@ import random
 
 import bpy  # noqa: F401  (pip 版 bpy 需先載入)
 import bmesh
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from lib import (Asset, apply_modifiers, beam, blob, cylinder, displace, fbm, finish_object, grid,
                  merge)
@@ -538,9 +538,134 @@ def build_cottage(name, seed):
     return finish_object(a.to_object(), 40)
 
 
+# ================================================================ 水邊植物與挖寶土堆
+
+def ribbon(base, height, width, bend, twist, curl=0.0, segs=8, sway_phase=0.0, wave=0.0):
+    """細長的葉片(蘆葦葉、水草):底寬頂尖,沿高度彎曲;wave > 0 時像水草一樣左右波動。"""
+    bx, by = base
+    ang = twist
+
+    def fn(u, v):
+        h = v * height
+        w = width * (1 - v * 0.92) * (u - 0.5)
+        lean = bend * v * v
+        side = wave * math.sin(v * 7 + sway_phase) * v
+        x = bx + math.cos(ang) * (w + side) + math.sin(ang) * lean
+        y = by + math.sin(ang) * (w + side) - math.cos(ang) * lean
+        return Vector((x, y, h - curl * v * v * v))
+    return grid(1, segs, fn)
+
+
+def build_reeds(name, seed):
+    rng = random.Random(seed)
+    a = Asset(name)
+    for i in range(14):
+        ang = rng.uniform(0, 6.28)
+        r = rng.uniform(0, 0.18)
+        a.add(ribbon((math.cos(ang) * r, math.sin(ang) * r), rng.uniform(1.0, 1.7), rng.uniform(0.035, 0.05),
+                     rng.uniform(0.15, 0.45), rng.uniform(0, 6.28), curl=rng.uniform(0.0, 0.25)),
+              "reed", tint=(rng.uniform(0.85, 1.1),) * 3)
+    # 香蒲穗:細莖頂上一根褐色圓柱
+    for i in range(4):
+        ang = rng.uniform(0, 6.28)
+        r = rng.uniform(0.02, 0.15)
+        x, y = math.cos(ang) * r, math.sin(ang) * r
+        h = rng.uniform(1.45, 1.9)
+        lean = Vector((rng.uniform(-0.08, 0.08), rng.uniform(-0.08, 0.08), 0))
+        a.add(limb((x, y, 0), Vector((x, y, h)) + lean, 0.012, 0.009, 6), "reed")
+        a.add(limb(Vector((x, y, h - 0.32)) + lean * 0.85, Vector((x, y, h - 0.08)) + lean * 0.97, 0.034, 0.03, 8, caps=True),
+              "cattail")
+    return finish_object(a.to_object())
+
+
+def build_waterweed(name, seed):
+    rng = random.Random(seed)
+    a = Asset(name)
+    for i in range(9):
+        ang = rng.uniform(0, 6.28)
+        r = rng.uniform(0, 0.12)
+        a.add(ribbon((math.cos(ang) * r, math.sin(ang) * r), rng.uniform(0.45, 0.9), rng.uniform(0.05, 0.08),
+                     rng.uniform(0.05, 0.2), rng.uniform(0, 6.28), segs=10, sway_phase=rng.uniform(0, 6.28),
+                     wave=0.05),
+              "waterweed", tint=(rng.uniform(0.8, 1.15),) * 3)
+    return finish_object(a.to_object())
+
+
+def _pad(rng, r):
+    # 睡蓮葉:有一道缺口的圓盤,邊緣微微翹起
+    notch = rng.uniform(0, 6.28)
+    bm = bmesh.new()
+    center = bm.verts.new((0, 0, 0.012))
+    ring = []
+    for k in range(29):
+        a = notch + 0.32 + (2 * math.pi - 0.64) * k / 28
+        rr = r * (1 + 0.04 * math.sin(a * 5))
+        ring.append(bm.verts.new((math.cos(a) * rr, math.sin(a) * rr, 0.02)))
+    for k in range(28):
+        bm.faces.new((center, ring[k], ring[k + 1]))
+    bm.normal_update()
+    bm = apply_modifiers(bm, [("SOLIDIFY", dict(thickness=0.012, offset=-1.0))])
+    return bm
+
+
+def build_lilypad(name, seed, flower=False):
+    rng = random.Random(seed)
+    a = Asset(name)
+    for i, (x, y, r) in enumerate(((0, 0, 0.36), (0.42, 0.18, 0.24), (-0.2, 0.4, 0.2))):
+        pad = _pad(rng, r)
+        bmesh.ops.translate(pad, vec=Vector((x, y, 0)), verts=pad.verts)
+        a.add(pad, "lilypad")
+    if flower:
+        # 粉白的睡蓮花:兩圈尖花瓣 + 黃色花心
+        for ring, (n, length, lift, tint) in enumerate(((8, 0.13, 0.35, (1.0, 0.78, 0.86)), (6, 0.1, 0.8, (1.0, 0.9, 0.94)))):
+            for k in range(n):
+                ang = k / n * 2 * math.pi + ring * 0.4
+                pet = blob(1.0, 2, (length, 0.035, 0.02), loc=(0, 0, 0), amp=0.0)
+                for v in pet.verts:
+                    v.co.x += length
+                bmesh.ops.rotate(pet, cent=Vector((0, 0, 0)), verts=pet.verts,
+                                 matrix=(Matrix.Rotation(ang, 3, "Z") @ Matrix.Rotation(-lift, 3, "Y")))
+                bmesh.ops.translate(pet, vec=Vector((0.05, -0.02, 0.05)), verts=pet.verts)
+                a.add(pet, "petal", tint=tint)
+        a.add(blob(0.035, 2, (1, 1, 0.6), loc=(0.05, -0.02, 0.07), amp=0.1), "petal", tint=(1.0, 0.78, 0.2))
+    return finish_object(a.to_object())
+
+
+def build_dig_mound(name, seed):
+    # 挖寶土堆:一小丘翻鬆的土,上面露出一截骨頭(柯基最愛)
+    rng = random.Random(seed)
+    a = Asset(name)
+    mound = blob(1.0, 4, (0.55, 0.5, 0.2), loc=(0, 0, 0.0), amp=0.18, freq=2.2, seed=seed, amp2=0.05, freq2=6)
+    for v in mound.verts:
+        if v.co.z < 0:
+            v.co.z *= 0.1
+    a.add(decimate(mound, 900), "dirt")
+    for _ in range(6):
+        ang = rng.uniform(0, 6.28)
+        d = rng.uniform(0.45, 0.7)
+        a.add(blob(rng.uniform(0.05, 0.09), 2, (1, 1, 0.6), loc=(math.cos(ang) * d, math.sin(ang) * d, 0.02),
+                   amp=0.2, freq=2, seed=rng.random() * 9), "dirt")
+    # 骨頭:斜插在土裡
+    tilt = Matrix.Rotation(math.radians(28), 3, "Y")
+    bone_bm = merge(limb((-0.22, 0, 0), (0.22, 0, 0), 0.04, 0.04, 10),
+                    blob(0.055, 2, (1, 1, 1), loc=(-0.24, 0.035, 0), amp=0.0),
+                    blob(0.055, 2, (1, 1, 1), loc=(-0.24, -0.035, 0), amp=0.0),
+                    blob(0.055, 2, (1, 1, 1), loc=(0.24, 0.035, 0), amp=0.0),
+                    blob(0.055, 2, (1, 1, 1), loc=(0.24, -0.035, 0), amp=0.0))
+    bmesh.ops.rotate(bone_bm, cent=Vector((0, 0, 0)), matrix=tilt, verts=bone_bm.verts)
+    bmesh.ops.translate(bone_bm, vec=Vector((0.12, 0.05, 0.2)), verts=bone_bm.verts)
+    a.add(bone_bm, "bone")
+    return finish_object(a.to_object())
+
+
 # ================================================================ 清單
 
+from characters import build_corgi, build_duck, rig_corgi, rig_duck  # noqa: E402
+
 ASSETS = {
+    # 角色:烘焙完才綁骨架、做動畫(post_bake)
+    "corgi": (build_corgi, dict(seed=81), 1024, 0.3, None, {"post_bake": rig_corgi}),
+    "duck": (build_duck, dict(seed=82), 1024, 0.3, None, {"post_bake": rig_duck}),
     # name: (builder, kwargs, 貼圖解析度, AO 距離[, 烘焙群組])
     "cottage": (build_cottage, dict(seed=1), 2048, 1.2, {"roof": ["thatch"]}),
     "tree_conifer_a": (build_conifer, dict(seed=11, tiers=5, height=7.0), 1024, 1.0),
@@ -562,4 +687,9 @@ ASSETS = {
     "crate": (build_crate, dict(seed=72), 512, 0.3),
     "chest": (build_chest, dict(seed=73), 512, 0.3),
     "well": (build_well, dict(seed=74), 1024, 0.5),
+    "reeds": (build_reeds, dict(seed=91), 512, 0.3),
+    "waterweed": (build_waterweed, dict(seed=92), 256, 0.2, None, {"ground": False}),
+    "lilypad": (build_lilypad, dict(seed=93), 256, 0.1, None, {"ground": False}),
+    "lily": (build_lilypad, dict(seed=94, flower=True), 512, 0.1, None, {"ground": False}),
+    "dig_mound": (build_dig_mound, dict(seed=95), 512, 0.3),
 }

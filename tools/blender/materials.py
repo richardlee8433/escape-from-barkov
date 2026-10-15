@@ -250,3 +250,116 @@ def ground_preview(nb):
     dirt = nb.ramp(n2, [(0.3, srgb("#5f4430")), (0.7, srgb("#7e5d40"))])
     base = nb.mix(nb.sep(path)["X"], grass, dirt)
     return dict(color=base, height=n2, bump=0.3, rough=0.95, ao=0.8)
+
+
+# ---------------------------------------------------------------- 角色
+
+@material("fur")
+def fur(nb):
+    # 毛色由頂點色決定(柯基的橘/白分界、鴨子的白羽);材質只加毛流的細節與凹凸
+    o = nb.coord("Object")
+    strands = nb.noise(nb.mapping(o, scale=(60, 60, 14)), 1.0, 5, 0.6, 0.6)
+    clumps = nb.noise(o, 9, 4, 0.55)
+    shade = nb.ramp(nb.math("ADD", nb.math("MULTIPLY", strands, 0.6), nb.math("MULTIPLY", clumps, 0.4)),
+                    [(0.25, (0.82, 0.82, 0.82)), (0.75, (1.0, 1.0, 1.0))])
+    base = nb.mul(nb.attr("col"), shade)
+    height = nb.math("ADD", strands, nb.math("MULTIPLY", clumps, 0.5))
+    return dict(color=base, height=height, bump=0.35, bump_dist=0.006, rough=0.9, ao=0.7)
+
+
+@material("glossy_black")
+def glossy_black(nb):
+    o = nb.coord("Object")
+    return dict(color=nb.ramp(nb.noise(o, 30, 2, 0.5), [(0.3, srgb("#0d0d0f")), (0.7, srgb("#1c1b1f"))]),
+                height=None, rough=0.25, ao=0.3)
+
+
+@material("beak")
+def beak(nb):
+    o = nb.coord("Object")
+    n = nb.noise(o, 25, 3, 0.5)
+    base = nb.mul(nb.ramp(n, [(0.3, (0.9, 0.9, 0.9)), (0.7, (1.0, 1.0, 1.0))]), nb.attr("col"))
+    return dict(color=base, height=n, bump=0.1, rough=0.55, ao=0.6)
+
+
+@material("helmet")
+def helmet(nb):
+    o = nb.coord("Object")
+    n = nb.noise(o, 18, 5, 0.6)
+    scratches = nb.remap(nb.noise(nb.mapping(o, scale=(40, 3, 40)), 1.0, 3, 0.5), 0.62, 0.7, 0.0, 1.0)
+    base = nb.ramp(n, [(0.3, srgb("#4b5631")), (0.7, srgb("#66734a"))])
+    base = nb.mix(nb.math("MULTIPLY", scratches, 0.4), base, srgb("#8d9468"))
+    return dict(color=base, height=n, bump=0.25, rough=0.7, ao=0.75)
+
+
+@material("plastic")
+def plastic(nb):
+    # 玩具槍的塑膠:顏色來自頂點色(槍身藍綠、槍口橘)
+    o = nb.coord("Object")
+    n = nb.noise(o, 40, 2, 0.5)
+    base = nb.mul(nb.ramp(n, [(0.3, (0.92, 0.92, 0.92)), (0.7, (1.0, 1.0, 1.0))]), nb.attr("col"))
+    return dict(color=base, height=None, rough=0.4, ao=0.7)
+
+
+# ---------------------------------------------------------------- 水邊植物與挖掘點
+
+@material("reed")
+def reed(nb):
+    # 蘆葦莖葉:越往上越黃,沿長邊有細纖維
+    o = nb.coord("Object")
+    z = nb.sep(o)["Z"]
+    fib = nb.noise(nb.mapping(o, scale=(80, 80, 3)), 1.0, 4, 0.6)
+    base = nb.ramp(nb.math("ADD", nb.remap(z, 0.0, 1.8, 0.0, 0.8), nb.math("MULTIPLY", fib, 0.25)),
+                   [(0.1, srgb("#3f5a24")), (0.55, srgb("#7d8f3e")), (0.95, srgb("#c2b26a"))])
+    base = nb.mul(base, nb.attr("col"))
+    return dict(color=base, height=fib, bump=0.3, rough=0.85, ao=0.6)
+
+
+@material("cattail")
+def cattail(nb):
+    o = nb.coord("Object")
+    n = nb.noise(o, 60, 5, 0.6)
+    base = nb.ramp(n, [(0.3, srgb("#4a2e1a")), (0.7, srgb("#6e4528"))])
+    return dict(color=base, height=n, bump=0.5, bump_dist=0.01, rough=0.95, ao=0.7)
+
+
+@material("waterweed")
+def waterweed(nb):
+    o = nb.coord("Object")
+    z = nb.sep(o)["Z"]
+    n = nb.noise(o, 20, 4, 0.6)
+    base = nb.ramp(nb.math("ADD", nb.remap(z, 0.0, 0.9, 0.0, 0.7), nb.math("MULTIPLY", n, 0.3)),
+                   [(0.1, srgb("#1f4a2a")), (0.6, srgb("#3f7d3a")), (0.95, srgb("#7fae4a"))])
+    base = nb.mul(base, nb.attr("col"))
+    return dict(color=base, height=n, bump=0.2, rough=0.7, ao=0.6)
+
+
+@material("lilypad")
+def lilypad(nb):
+    o = nb.coord("Object")
+    x, y = nb.sep(o)["X"], nb.sep(o)["Y"]
+    ang = nb.gradient(o, "RADIAL")
+    veins = nb.remap(nb.math("ABSOLUTE", nb.math("SINE", nb.math("MULTIPLY", ang, 75.0))), 0.0, 0.12, 1.0, 0.0)
+    n = nb.noise(o, 8, 4, 0.6)
+    base = nb.ramp(n, [(0.3, srgb("#2f6a2a")), (0.7, srgb("#4f8f38"))])
+    base = nb.mix(nb.math("MULTIPLY", veins, 0.35), base, srgb("#86b356"))
+    return dict(color=base, height=nb.math("SUBTRACT", n, veins), bump=0.25, rough=0.35, ao=0.5)
+
+
+@material("dirt")
+def dirt(nb):
+    o = nb.coord("Object")
+    n1 = nb.noise(o, 6, 5, 0.6)
+    n2 = nb.noise(o, 30, 4, 0.6)
+    pebbles = nb.remap(nb.voronoi(o, 18, "F1", "Distance"), 0.0, 0.18, 1.0, 0.0)
+    base = nb.ramp(n1, [(0.3, srgb("#4f3522")), (0.7, srgb("#76533a"))])
+    base = nb.mix(nb.math("MULTIPLY", pebbles, 0.4), base, srgb("#9a8a72"))
+    return dict(color=base, height=nb.math("ADD", n2, pebbles), bump=0.5, bump_dist=0.01, rough=0.95, ao=0.85)
+
+
+@material("bone")
+def bone_mat(nb):
+    o = nb.coord("Object")
+    n = nb.noise(o, 20, 4, 0.6)
+    base = nb.ramp(n, [(0.3, srgb("#d9cfb8")), (0.7, srgb("#f2ead8"))])
+    return dict(color=base, height=n, bump=0.15, rough=0.6, ao=0.7)

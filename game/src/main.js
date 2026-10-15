@@ -10,6 +10,7 @@ import { Collision } from "./systems/Collision.js";
 import { Combat } from "./systems/Combat.js";
 import { Spawner } from "./systems/Spawner.js";
 import { Inventory } from "./systems/Inventory.js";
+import { DigSpots } from "./systems/DigSpots.js";
 import { ExitSystem } from "./systems/ExitSystem.js";
 import { Sfx } from "./audio/Sfx.js";
 import { Bgm } from "./audio/Bgm.js";
@@ -37,7 +38,8 @@ screens.onStart(async (onProgress) => {
   const spawner = new Spawner(game.scene, assets, collision);
   spawner.spawnEnemies(BAL.enemy.count, player.pos);
   spawner.scatterItems(player.pos);
-  const inventory = new Inventory(player, spawner);
+  const digSpots = new DigSpots(game.scene, assets, collision, world.canDig, player.pos);
+  const inventory = new Inventory(player, spawner, digSpots);
   const exitSystem = new ExitSystem(world.exitPos, player, game.input);
 
   // 回饋層(純事件訂閱,不改遊戲狀態)
@@ -62,6 +64,7 @@ screens.onStart(async (onProgress) => {
   game.addSystem({ update: (dt) => spawner.updateEnemies(dt, player, combat) });
   game.addSystem({ update: (dt) => combat.update(dt, spawner.enemies, player) });
   game.addSystem({ update: () => exitSystem.update() });
+  game.addSystem({ update: () => digSpots.update(player) });
 
   // 畫面系統(每幀)
   game.addSystem({
@@ -81,7 +84,7 @@ screens.onStart(async (onProgress) => {
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision }; // Console 檢查用
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots }; // Console 檢查用
 
   game.start();
   hud.show();

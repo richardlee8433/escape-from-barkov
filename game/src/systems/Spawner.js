@@ -19,7 +19,7 @@ export class Spawner {
     bus.on("enemy:died", ({ x, z }) => {
       const type = this.pickDropType();
       if (!type) return;
-      this.items.push(new ItemDrop(this.scene, this.assets, type, x, z));
+      this.dropItem(type, x, z);
       log(`Drop: ${type}`, "info");
     });
   }
@@ -72,7 +72,7 @@ export class Spawner {
     if (!player.alive) return;
     const diff = combat.difficulty();
     for (const en of this.enemies) {
-      en.update(dt, player.pos, diff, this.collision, combat);
+      en.update(dt, player, diff, this.collision, combat);
     }
     // 推擠前記下合法位置:推擠完解不開(被擠進石縫)就退回原位
     const safe = this.enemies.map((e) => [e.pos.x, e.pos.z]);
@@ -89,6 +89,11 @@ export class Spawner {
       }
       en.pos.y = BAL.world.gameplayY;
     });
+  }
+
+  // 在 (x, z) 掉出一個道具(敵人死亡、挖寶)
+  dropItem(type, x, z) {
+    this.items.push(new ItemDrop(this.scene, this.assets, type, x, z));
   }
 
   nearestItem(pos, range) {

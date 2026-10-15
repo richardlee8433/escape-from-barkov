@@ -226,4 +226,38 @@ export function run() {
       ? true
       : `bullets=${c.bullets.length} stillInScene=${mesh.parent !== null}`;
   });
+
+  suite("鴨子啄擊");
+
+  check("啄中:扣血、發出 combat:hit,傷害來向指回鴨子", () => {
+    const c = makeCombat();
+    const p = fakePlayer(0, 0);
+    const duck = fakeEnemy(0, 1.5);
+    const [got, off] = capture(["combat:hit"]);
+    c.peck(duck, p);
+    off();
+    if (p.hp !== 100 - BAL.enemy.peckDamage) return `hp=${p.hp}`;
+    const ev = p.damageEvents[0];
+    if (!(ev.fz > 0.99)) return `來向應指向鴨子(+z),實際 (${ev.fx.toFixed(2)}, ${ev.fz.toFixed(2)})`;
+    return eq(got.length, 1);
+  });
+
+  check("被啄會退一步,但不會被推進石頭裡", () => {
+    const col = new Collision();
+    col.addStatic(0, -1.2, 0.6); // 柯基身後就是石頭
+    const c = makeCombat(col);
+    const p = fakePlayer(0, 0);
+    c.peck(fakeEnemy(0, 1.5), p);
+    const pen = col.penetration(p.pos.x, p.pos.z, p.radius);
+    if (pen > 0.02) return `被推進石頭 ${pen.toFixed(3)}`;
+    return p.pos.z < 0 ? true : "沒有被往後推";
+  });
+
+  check("柯基已經倒下就不會再被啄", () => {
+    const c = makeCombat();
+    const p = fakePlayer(0, 0);
+    p.alive = false;
+    c.peck(fakeEnemy(0, 1.5), p);
+    return eq(p.hp, 100);
+  });
 }

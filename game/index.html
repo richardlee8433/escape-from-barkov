@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Escape from Barkov v0.6</title>
+  <title>Escape from Barkov v0.8</title>
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #241c12; font-family: system-ui, "Noto Sans TC", sans-serif; }
     #app { width: 100%; height: 100%; }
@@ -127,7 +127,7 @@
 
   <div id="title-screen">
     <h1>🐕 Escape from Barkov</h1>
-    <div class="ver">v0.7.0 — clear shallow water: a stream and a lake</div>
+    <div class="ver">v0.8.0 — new corgi &amp; ducks, digging, reeds and lilies</div>
     <button id="btn-start">Start Game</button>
     <button id="btn-howto">How to Play</button>
   </div>
@@ -135,9 +135,10 @@
   <div id="howto" class="hidden">
     <div class="card">
       <h3>How to Play</h3>
-      <div><kbd>W A S D</kbd> Move</div>
+      <div><kbd>W A S D</kbd> Run · hold <kbd>Shift</kbd> to walk</div>
       <div><kbd>Mouse</kbd> Aim · <kbd>Left Click</kbd> Shoot</div>
-      <div><kbd>E</kbd> Pick up items · <kbd>1 2 3</kbd> Use hotbar item</div>
+      <div><kbd>E</kbd> Pick up items / dig at a 🦴 mound · <kbd>1 2 3</kbd> Use hotbar item</div>
+      <div>Watch out: ducks chase you and peck when they wind up</div>
       <div><kbd>F</kbd> Extract at the exit gate · <kbd>M</kbd> Toggle music</div>
       <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;">Close</button>
     </div>
@@ -161,8 +162,8 @@
     <h2></h2>
     <p></p>
     <div class="credits">
-      Duck model by rbreve (CC-BY 4.0) · Corgi model by ofekyovel (CC-BY 4.0)<br />
-      Environment modeled procedurally in Blender · Pickups by Kenney.nl (CC0)
+      Corgi, ducks and environment modeled procedurally in Blender<br />
+      Pickups by Kenney.nl (CC0)
     </div>
     <button id="btn-retry">Play Again</button>
   </div>

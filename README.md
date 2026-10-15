@@ -1,6 +1,6 @@
 # 🐕 Escape from Barkov
 
-A top-down extraction shooter where a corgi fights its way through a forest full of armed ducks — inspired by the look and feel of *Escape from Duckov*. Built with [Three.js](https://threejs.org/), no game engine, no bundler.
+A top-down extraction shooter where a corgi fights its way through a forest full of angry ducks — inspired by the look and feel of *Escape from Duckov*. Built with [Three.js](https://threejs.org/), no game engine, no bundler.
 
 | In game (v0.6) | Same assets rendered in Blender Cycles |
 |---|---|
@@ -9,6 +9,10 @@ A top-down extraction shooter where a corgi fights its way through a forest full
 | Stream | Lake |
 |---|---|
 | ![stream](docs/ingame_river.jpg) | ![lake](docs/ingame_lake.jpg) |
+
+| Ducks chase and peck (v0.8) | Reeds, waterweed and lilies (v0.8) |
+|---|---|
+| ![chase](docs/ingame_chase.jpg) | ![plants](docs/ingame_plants.jpg) |
 
 ## Play
 
@@ -28,15 +32,16 @@ To publish as a static site, run `node tools/build-web.mjs`: `dist/` is self-con
 
 | Key | Action |
 |-----|--------|
-| `W A S D` | Move |
+| `W A S D` | Run |
+| `Shift` (hold) | Walk |
 | Mouse | Aim |
 | Left Click | Shoot foam darts |
-| `E` | Pick up items |
+| `E` | Pick up items · dig at a mound with a bone sticking out |
 | `1` `2` `3` | Use hotbar item |
 | `F` | Extract at the exit gate |
 | `M` | Toggle music |
 
-**Goal:** fight (or sneak) your way from the west spawn to the EXIT gate on the east side of the map, cross the ravine bridge, and press `F` to extract. Enemies get faster and shoot quicker the longer you survive and the more you kill.
+**Goal:** fight (or sneak) your way from the west spawn to the EXIT gate on the east side of the map, cross the ravine bridge, and press `F` to extract. Ducks chase you down and peck — watch for the wind-up (a ring on the ground, the duck leans back) and get out of reach. Dig mounds hide ammo and medkits; the corgi shows off its find to the camera afterwards. Enemies get faster and attack sooner the longer you survive and the more you kill.
 
 ## Project structure
 
@@ -47,11 +52,11 @@ game/            the current game (modular rebuild)
   src/
     config/      All balance numbers in one file (balance.js)
     core/        Event bus, fixed-timestep game loop, input, asset loader
-    render/      Post-processing (tilt-shift, color grade, vignette, bloom), camera rig
-    world/       Painted ground, chunked instanced grass & flowers, world builder
+    render/      Post-processing (tilt-shift, color grade, vignette, bloom), camera rig, animation player
+    world/       Painted ground, water, chunked instanced grass & flowers, water plants, world builder
     entities/    Player, Enemy, ItemDrop
     ai/          Enemy state machine (patrol / chase / search) with a real FOV
-    systems/     Collision, combat, spawner, inventory, exit
+    systems/     Collision, combat, spawner, inventory, dig spots, exit
     audio/       Synthesized SFX + BGM
     ui/          HUD (event-driven), screens
 tools/blender/   Procedural asset pipeline (Python + Blender): model → bake → GLB
@@ -68,6 +73,17 @@ v0.3.5.html      Legacy v0.3.5 single-file version (kept for reference)
 - **Measured, not assumed** — the bridge walk height is raycast-sampled from the actual model, and every collider is measured from the model's real footprint.
 - **Shallow water you can see into** — the ground is a 3D mesh: flat (y = 0) everywhere the corgi can stand, dipping into a wide shallow stream and a lake on the south edge exactly where collision forbids walking, so nothing floats over a slope. Each water body bakes the ground height under it (plus rocks and bridge piles) into a texture; the water shader turns depth into color and transparency, wraps foam around every shoreline and obstacle, and pushes waves up the lake beach, while the ground shader draws animated caustics on the bed.
 - **Collision that matches the visuals** — obstacles are circles, capsules (fences, rails, long boulders, logs) or rotated boxes (cottages, crates), backed by a spatial hash. The ravine is a band exactly as wide as its painted dark floor, with the bridge deck as the only opening, so the corgi can never be half on the bridge and half over the drop. The corgi itself collides as a capsule that follows its facing (nose and tail included), and every move/turn either resolves cleanly or falls back to sliding/staying put, so characters never end up wedged inside rocks.
+
+## Characters
+
+The corgi and the helmeted ducks are modeled in Blender too (`tools/blender/characters.py`): every body part is a separate piece bound rigidly to one bone, and the animations are keyframed in code and exported as glTF clips (30 fps), played in game with crossfades.
+
+| Character | Clips |
+|-----------|-------|
+| Corgi | `Idle`, `Walk` (diagonal trot), `Run` (bound gait), `Dig` (nose down, front paws paddling), `Proud` (turns to the camera, chest up, paws lifting, tail wagging) |
+| Duck | `Idle`, `Walk` (waddle), `Run` (leaning, wings flapping), `Peck` (lean back = wind-up, then thrust) |
+
+Water plants — reeds with cattails along the banks, waterweed swaying on the stream bed, lily pads and flowers on the lake — are instanced Blender models with a vertex-shader sway.
 
 ## Environment assets (Blender pipeline)
 
@@ -87,14 +103,15 @@ python tools/blender/render_preview.py      # → docs/blender_preview.jpg (Cycl
 | `lib.py` | bmesh geometry helpers, shader-node builder, bake & export (per-group texture atlases) |
 | `materials.py` | procedural materials |
 | `assets.py` | one builder per asset + the asset table (texture size, AO distance, bake groups) |
+| `characters.py` | corgi & duck: modeling, bone layout and animation clips |
 
 ## Credits
 
 | Asset | Author | License |
 |-------|--------|---------|
-| Corgi model | [ofekyovel](https://sketchfab.com/ofekyovel) | CC-BY 4.0 |
-| Voxel duck model | [rbreve](https://sketchfab.com/rbreve) | CC-BY 4.0 |
-| Environment models (`game/assets/models`) | Procedurally generated with Blender (`tools/blender/`) | — |
+| Corgi, duck and environment models (`game/assets/models`) | Procedurally generated with Blender (`tools/blender/`) | — |
+| Corgi model used by the legacy v0.3.5 (`luug_corgi_tales_of_arcadia.glb`) | [ofekyovel](https://sketchfab.com/ofekyovel) | CC-BY 4.0 |
+| Voxel duck model used by `proto/` and v0.3.5 | [rbreve](https://sketchfab.com/rbreve) | CC-BY 4.0 |
 | Pickups & dart models (+ proto environment) | [Kenney](https://kenney.nl/) (Nature Kit, Survival Kit, Platformer Kit, Blaster Kit) | CC0 |
 
 Built with Three.js r164.

@@ -2,13 +2,14 @@ import * as THREE from "three";
 import { BAL } from "../config/balance.js";
 import { bus } from "../core/EventBus.js";
 
-// 敵人狀態機：patrol（巡邏）→ chase（追擊）→ windup（舉槍）→ chase，
+// 敵人狀態機：patrol（巡邏）→ chase（追擊）→ windup（啄擊前搖）→ chase，
 // 失去視線後 chase → search（搜尋最後已知位置）→ patrol。
 //
+// 鴨子不拿槍:看見柯基就衝過去追,追到身邊才啄。
 // 感知 / 意圖 / 動作三層分離：canSee() 是唯一的感知入口，
 // 三關都要過——距離、視錐、實體遮擋——敵人才算「看見」玩家。
-// 開火不是冷卻到就打：要先面向對準，再經過 windup 前搖，
-// 前搖結束當下重新驗證視線，中途被遮住就中止。
+// 啄擊不是一貼身就打：要先面向對準，再經過 windup 前搖(地上有預告圈),
+// 前搖結束當下重新驗證視線與距離——柯基在前搖中跑開或躲到掩體後,這一啄就落空。
 const E = BAL.enemy;
 
 export class EnemyBrain {
@@ -18,7 +19,7 @@ export class EnemyBrain {
     this.state = "patrol";
     this.patrolDir = Math.random() * Math.PI * 2;
     this.loseSightTimer = 0;
-    this.fireCd = Math.random() * E.fireCd; // 錯開初始冷卻,避免整群同時開火
+    this.attackCd = Math.random() * E.attackCd; // 錯開初始冷卻,避免一群鴨子同時啄
     this.windup = 0;
     this.lastKnown = new THREE.Vector3();
   }
@@ -36,7 +37,7 @@ export class EnemyBrain {
     return !this.collision.sightBlocked(p.x, p.z, playerPos.x, playerPos.z);
   }
 
-  // 面向是否已經對準目標（沒對準就不准舉槍,杜絕「瞬間轉身開槍」）
+  // 面向是否已經對準目標（沒對準就不准出手,杜絕「瞬間轉身就啄」）
   aimAligned(targetYaw) {
     let diff = targetYaw - this.enemy.root.rotation.y;
     while (diff > Math.PI) diff -= Math.PI * 2;
@@ -44,9 +45,9 @@ export class EnemyBrain {
     return Math.abs(diff) < E.aimTolerance;
   }
 
-  // 回傳這一刻的行動意圖：{ move: Vector3|null, faceYaw: number|null, fire: bool }
+  // 回傳這一刻的行動意圖：{ move: Vector3|null, faceYaw: number|null, attack: bool }
   update(dt, playerPos, difficulty) {
-    this.fireCd -= dt;
+    this.attackCd -= dt;
     const p = this.enemy.pos;
     const dx = playerPos.x - p.x;
     const dz = playerPos.z - p.z;
@@ -60,18 +61,21 @@ export class EnemyBrain {
       this.loseSightTimer = 0;
     }
 
-    // 舉槍中：站定不動，決策已經鎖定，只有視線斷掉才中止
+    // 前搖中：站定不動，決策已經鎖定，只有視線斷掉才中止
     if (this.state === "windup") {
       if (!seen) {
         this.state = "chase";
         bus.emit("enemy:windupCancel", { enemy: this.enemy });
-        return { move: null, faceYaw, fire: false };
+        return { move: null, faceYaw, attack: false };
       }
       this.windup -= dt;
-      if (this.windup > 0) return { move: null, faceYaw, fire: false };
+      if (this.windup > 0) return { move: null, faceYaw, attack: false };
       this.state = "chase";
-      this.fireCd = E.fireCd / (0.7 + 0.5 * difficulty) + Math.random() * 0.3;
-      return { move: null, faceYaw, fire: true };
+      this.attackCd = E.attackCd / (0.7 + 0.5 * difficulty) + Math.random() * 0.3;
+      // 前搖結束時柯基已經跑出啄得到的距離 → 落空
+      const hit = dist <= E.peckReach;
+      if (!hit) bus.emit("enemy:attackMiss", { enemy: this.enemy });
+      return { move: null, faceYaw, attack: hit };
     }
 
     if (seen && this.state !== "chase") {
@@ -86,33 +90,33 @@ export class EnemyBrain {
       this.patrolDir += (Math.random() - 0.5) * dt * 1.2;
       const move = new THREE.Vector3(Math.cos(this.patrolDir), 0, Math.sin(this.patrolDir))
         .multiplyScalar(speed * E.patrolSpeedMul);
-      return { move, faceYaw: Math.atan2(move.x, move.z), fire: false };
+      return { move, faceYaw: Math.atan2(move.x, move.z), attack: false };
     }
 
     if (this.state === "search") {
       const to = this.lastKnown.clone().sub(p).setY(0);
       if (to.lengthSq() < 1) {
         this.state = "patrol";
-        return { move: null, faceYaw: null, fire: false };
+        return { move: null, faceYaw: null, attack: false };
       }
       to.normalize();
       return {
         move: to.clone().multiplyScalar(speed * E.searchSpeedMul),
         faceYaw: Math.atan2(to.x, to.z),
-        fire: false,
+        attack: false,
       };
     }
 
-    // chase：射程內且已經對準 → 進入前搖；否則拉近距離
-    if (seen && dist < E.fireRange && this.fireCd <= 0 && this.aimAligned(faceYaw)) {
+    // chase：貼到身邊且已經對準 → 進入前搖；否則一路追過去
+    if (seen && dist < E.attackRange && this.attackCd <= 0 && this.aimAligned(faceYaw)) {
       this.state = "windup";
       this.windup = E.windupTime;
       bus.emit("enemy:windup", { enemy: this.enemy, duration: E.windupTime });
-      return { move: null, faceYaw, fire: false };
+      return { move: null, faceYaw, attack: false };
     }
-    const move = dist > E.desiredDist
+    const move = dist > E.attackRange * 0.7
       ? new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(speed)
       : null;
-    return { move, faceYaw, fire: false };
+    return { move, faceYaw, attack: false };
   }
 }

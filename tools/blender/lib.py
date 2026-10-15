@@ -251,28 +251,37 @@ class Asset:
         self.bm.loops.layers.uv.new("SrcUV")
         self.bm.loops.layers.float_color.new("col")
         self.mats = []
+        self.bone_ranges = []  # (起始頂點, 結束頂點, 骨頭名):角色的每個零件剛性綁在一根骨頭上
 
     def _mat_index(self, mat):
         if mat not in self.mats:
             self.mats.append(mat)
         return self.mats.index(mat)
 
-    def add(self, piece, mat, tint=(1, 1, 1), smooth=True):
+    def add(self, piece, mat, tint=(1, 1, 1), smooth=True, bone=None, color_fn=None):
+        """color_fn(co, normal) → (r, g, b):逐頂點上色(例如柯基的橘/白毛色分界)。"""
         idx = self._mat_index(mat)
+        start = len(self.bm.verts)
         if not piece.loops.layers.uv.get("SrcUV"):  # 所有零件都要有同名 UV,合併時才不會掉資料
             piece.loops.layers.uv.new("SrcUV")
         col = piece.loops.layers.float_color.get("col") or piece.loops.layers.float_color.new("col")
         for f in piece.faces:
             f.material_index = idx
             f.smooth = smooth
-            if tint is not None:  # None = 保留零件自帶的頂點色
+            if color_fn is not None:
+                for lp in f.loops:
+                    lp[col] = (*color_fn(lp.vert.co, lp.vert.normal), 1.0)
+            elif tint is not None:  # None = 保留零件自帶的頂點色
                 for lp in f.loops:
                     lp[col] = (*tint, 1.0)
+        n = len(piece.verts)
         me = bpy.data.meshes.new("_tmp")
         piece.to_mesh(me)
         piece.free()
         self.bm.from_mesh(me)
         bpy.data.meshes.remove(me)
+        if bone:
+            self.bone_ranges.append((start, start + n, bone))
 
     def to_object(self):
         me = bpy.data.meshes.new(self.name)
@@ -282,7 +291,78 @@ class Asset:
             me.materials.append(make_material(m))
         ob = bpy.data.objects.new(self.name, me)
         bpy.context.collection.objects.link(ob)
+        for a, b, bone in self.bone_ranges:
+            vg = ob.vertex_groups.get(bone) or ob.vertex_groups.new(name=bone)
+            vg.add(list(range(a, b)), 1.0, "REPLACE")
         return ob
+
+
+# ---------------------------------------------------------------- 骨架與動畫
+
+def make_rig(ob, bones, name="rig"):
+    """bones: [(名稱, 關節位置, 父骨頭名或 None)]。每根骨頭都朝 +Z、roll 0,
+    所以骨頭的靜止方向全都一樣,動畫可以直接用「世界軸」描述旋轉(見 pose)。"""
+    bpy.context.scene.render.fps = 30  # 動畫以 30fps 設計(影格數見各角色的 add_action)
+    arm_data = bpy.data.armatures.new(name)
+    arm = bpy.data.objects.new(name, arm_data)
+    bpy.context.collection.objects.link(arm)
+    for o in bpy.context.view_layer.objects:
+        if o is not None:
+            o.select_set(False)
+    bpy.context.view_layer.objects.active = arm
+    arm.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")
+    for bname, head, parent in bones:
+        eb = arm_data.edit_bones.new(bname)
+        eb.head = Vector(head)
+        eb.tail = Vector(head) + Vector((0, 0, 0.1))
+        eb.roll = 0.0
+        if parent:
+            eb.parent = arm_data.edit_bones[parent]
+    bpy.ops.object.mode_set(mode="OBJECT")
+    ob.parent = arm
+    mod = ob.modifiers.new("rig", "ARMATURE")
+    mod.object = arm
+    for pb in arm.pose.bones:
+        pb.rotation_mode = "QUATERNION"
+    return arm
+
+
+def pose(arm, bname, rot=(0, 0, 0), loc=(0, 0, 0)):
+    """以世界軸設定骨頭姿勢:rot = 繞世界 X/Y/Z 的角度(度),loc = 世界座標位移。
+    角色面向 -Y:繞 X 為正 → 低頭/腿往後擺;繞 Y → 側傾;繞 Z → 轉頭/搖尾。"""
+    from mathutils import Euler, Quaternion
+    pb = arm.pose.bones[bname]
+    rest = pb.bone.matrix_local.to_quaternion()
+    qw = Euler([math.radians(a) for a in rot], "XYZ").to_quaternion()
+    pb.rotation_quaternion = rest.inverted() @ qw @ rest
+    pb.location = rest.inverted() @ Vector(loc)
+
+
+def add_action(arm, name, frames, keyframe_fn):
+    """建立一段循環動畫:keyframe_fn(t) 在 t ∈ [0, 1) 對骨頭呼叫 pose();
+    第 frames 格與第 0 格相同,循環不會跳。"""
+    if arm.animation_data is None:
+        arm.animation_data_create()
+    act = bpy.data.actions.new(name)
+    arm.animation_data.action = act
+    steps = max(8, frames)
+    for k in range(steps + 1):
+        t = (k % steps) / steps
+        f = frames * k / steps
+        for pb in arm.pose.bones:
+            pb.rotation_quaternion = (1, 0, 0, 0)
+            pb.location = (0, 0, 0)
+        keyframe_fn(t)
+        for pb in arm.pose.bones:
+            pb.keyframe_insert("rotation_quaternion", frame=f)
+            pb.keyframe_insert("location", frame=f)
+    act.use_fake_user = True
+    track = arm.animation_data.nla_tracks.new()
+    track.name = name
+    track.strips.new(name, 0, act)
+    arm.animation_data.action = None
+    return act
 
 
 def box_uv(bm, size):
@@ -457,7 +537,7 @@ def _final_material(name, col, nrm, rough, metal):
 
 
 def bake_and_export(ob, path, res=1024, samples=8, ao_dist=1.0, normal_scale=0.5, ground=True,
-                    groups=None, jpeg_quality=86):
+                    groups=None, jpeg_quality=86, post_bake=None):
     """groups: {群組名: [材質名…]};未列出的材質歸到主群組。每個群組一張顏色圖 + 一張法線圖。"""
     scene = bpy.context.scene
     scene.cycles.samples = samples
@@ -545,7 +625,11 @@ def bake_and_export(ob, path, res=1024, samples=8, ao_dist=1.0, normal_scale=0.5
 
     if gnd:
         gnd.select_set(False)
+    # 角色:烘焙完(靜止姿勢)才綁骨架、做動畫,匯出時連骨架一起選
+    rig = post_bake(ob) if post_bake else None
     _select_only(ob)
+    if rig:
+        rig.select_set(True)
     bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
@@ -556,7 +640,10 @@ def bake_and_export(ob, path, res=1024, samples=8, ao_dist=1.0, normal_scale=0.5
         export_yup=True,
         export_materials="EXPORT",
         export_vertex_color="NONE",
-        export_animations=False,
+        export_animations=bool(rig),
+        export_skins=bool(rig),
+        export_animation_mode="NLA_TRACKS" if rig else "ACTIONS",
+        export_force_sampling=True,
     )
 
 

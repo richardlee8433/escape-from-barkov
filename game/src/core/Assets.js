@@ -13,12 +13,13 @@ const BLENDER = [
   "bush", "bush_flower", "stump", "log",
   "fence", "gate", "bridge",
   "barrel", "crate", "chest",
+  "reeds", "waterweed", "lilypad", "lily", "dig_mound",
+  // 角色:帶骨架與動畫(柯基 Idle/Walk/Run/Dig/Proud,鴨子 Idle/Walk/Run/Peck)
+  "corgi", "duck",
 ];
 
-// 角色模型（CC-BY 4.0）與拾取物（Kenney CC0,各包貼圖同名故分資料夾）
+// 拾取物與子彈（Kenney CC0,各包貼圖同名故分資料夾）
 const SPECIAL = {
-  corgi: "../luug_corgi_tales_of_arcadia.glb",
-  duck: MODEL_BASE + "voxel_duck.glb",
   pickup_heart: MODEL_BASE + "pickups-platformer/heart.glb",
   pickup_ammo: MODEL_BASE + "pickups-blaster/clip-large.glb",
   bullet: MODEL_BASE + "pickups-blaster/bullet-foam.glb",
@@ -26,7 +27,7 @@ const SPECIAL = {
 
 export class Assets {
   constructor() {
-    this.lib = new Map(); // name → { scene, size }
+    this.lib = new Map(); // name → { scene, size, skinned, clips }
     this.loader = new GLTFLoader();
     // GLB 內嵌的貼圖改用 <img> 載入(TextureLoader),不用 ImageBitmapLoader:
     // 後者是 fetch(blob:),在限制 fetch 來源的主機上會被擋,模型就沒有貼圖。
@@ -89,20 +90,19 @@ export class Assets {
             }
           }
         });
-        // 鴨子模型原始朝向是 -Z，包一層讓「正面 = +Z」，與 AI 的 FOV 方向一致
-        let scene = root;
-        if (name === "duck") {
-          scene = new THREE.Group();
-          root.rotation.y = Math.PI;
-          scene.add(root);
-        }
+        const scene = root;
         let skinned = false;
         scene.traverse((o) => { if (o.isSkinnedMesh) skinned = true; });
         const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
-        this.lib.set(name, { scene, size, skinned });
+        this.lib.set(name, { scene, size, skinned, clips: gltf.animations });
         resolve();
       }, (err) => reject(new Error(`${name}: ${err?.message || err}`)));
     });
+  }
+
+  // 模型附帶的動畫片段(角色用)
+  clips(name) {
+    return this.lib.get(name)?.clips ?? [];
   }
 
   // 產生一個實例：縮放到目標尺寸、腳底貼齊 y=0。

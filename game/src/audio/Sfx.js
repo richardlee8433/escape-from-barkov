@@ -31,6 +31,9 @@ export class Sfx {
     bus.on("enemy:alerted", () => beep(760, 0.12)); // 「嘎!」
     bus.on("enemy:hurt", () => beep(260, 0.08, "triangle")); // 「嘎…」
     bus.on("enemy:died", () => { beep(420, 0.08); beep(260, 0.16); }); // 「哇→啊」
-    bus.on("victory", () => { beep(660, 0.12); beep(880, 0.12); beep(1320, 0.25); });
+    bus.on("enemy:peck", () => beep(1500, 0.04, "square", 0.05)); // 「啄!」
+    bus.on("dig:start", () => beep(180, 0.08, "sawtooth", 0.04));
+    bus.on("dig:found", () => { beep(990, 0.07); beep(1480, 0.14); });
+        bus.on("victory", () => { beep(660, 0.12); beep(880, 0.12); beep(1320, 0.25); });
   }
 }

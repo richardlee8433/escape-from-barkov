@@ -7,6 +7,7 @@ import {
 import { GrassField } from "./Grass.js";
 import { FlowerField } from "./Flowers.js";
 import { Water, FishSchool } from "./Water.js";
+import { InstancedProp, placeMatrix } from "./Props.js";
 import { CAMERA_OFFSET } from "../render/CameraRig.js";
 
 // 把整張地圖搭出來：光、地面、草、石牆、樹、營地、橋、出口。
@@ -416,6 +417,57 @@ export function buildWorld(scene, assets, collision) {
   }
   const fish = new FishSchool(scene, fishPaths, WATER_Y - 0.4);
 
+  // ---------- 水邊植物:蘆葦、水草、睡蓮 ----------
+  // 都依「地形高度」決定長在哪:蘆葦在岸邊的淺水(水深 0~0.4),水草沉在較深的水底,
+  // 睡蓮浮在湖面較深處。橋附近留空,免得擋住橋墩。
+  const waterAreas = [STREAM_BOUNDS, LAKE_BOUNDS];
+  const randomIn = (b) => [b.x0 + Math.random() * (b.x1 - b.x0), b.z0 + Math.random() * (b.z1 - b.z0)];
+  const nearBridge = (x, z) => Math.hypot(x - BRIDGE_SPOT.x, z - BRIDGE_SPOT.z) < 7;
+  const reedM = [], weedM = [], padM = [], lilyM = [];
+  // 蘆葦:成叢長在岸邊
+  for (let c = 0, tries = 0; c < 70 && tries < 4000; tries++) {
+    const area = waterAreas[Math.random() < 0.55 ? 0 : 1];
+    const [cx, cz] = randomIn(area);
+    const h = terrainHeight(cx, cz);
+    if (h > -0.03 || h < WATER_Y - 0.35 || nearBridge(cx, cz) || Math.abs(cz) > 100) continue;
+    c++;
+    const n = 2 + ((Math.random() * 5) | 0);
+    for (let k = 0; k < n; k++) {
+      const x = cx + (Math.random() - 0.5) * 2.4, z = cz + (Math.random() - 0.5) * 2.4;
+      const y = terrainHeight(x, z);
+      if (y > -0.02 || y < WATER_Y - 0.4 || nearBridge(x, z)) continue;
+      reedM.push(placeMatrix(x, y, z, Math.random() * 6.28, 0.75 + Math.random() * 0.55));
+    }
+  }
+  // 水草:水底(水深 0.3~0.95,太深會被水色蓋掉),透過透明的水看得到它們隨水流擺動
+  for (let i = 0, tries = 0; i < 320 && tries < 8000; tries++) {
+    const [x, z] = randomIn(waterAreas[Math.random() < 0.5 ? 0 : 1]);
+    const y = terrainHeight(x, z);
+    const depth = WATER_Y - y;
+    if (depth < 0.3 || depth > 0.95 || nearBridge(x, z) || Math.abs(z) > 100) continue;
+    weedM.push(placeMatrix(x, y, z, Math.random() * 6.28, 1.1 + Math.random() * 0.8));
+    i++;
+  }
+  // 睡蓮:湖面成片,少數開花
+  for (let c = 0, tries = 0; c < 22 && tries < 3000; tries++) {
+    const [cx, cz] = randomIn(LAKE_BOUNDS);
+    if (WATER_Y - terrainHeight(cx, cz) < 0.5 || cz < -94) continue;
+    c++;
+    const n = 1 + ((Math.random() * 3) | 0);
+    for (let k = 0; k < n; k++) {
+      const x = cx + (Math.random() - 0.5) * 2.2, z = cz + (Math.random() - 0.5) * 2.2;
+      if (WATER_Y - terrainHeight(x, z) < 0.4) continue;
+      const m = placeMatrix(x, WATER_Y - 0.012, z, Math.random() * 6.28, 0.9 + Math.random() * 0.5);
+      (Math.random() < 0.25 ? lilyM : padM).push(m);
+    }
+  }
+  const plants = [
+    new InstancedProp(scene, assets, "reeds", reedM, { sway: 0.035, swayFreq: 1.4, castShadow: true }),
+    new InstancedProp(scene, assets, "waterweed", weedM, { sway: 0.22, swayFreq: 2.0 }),
+    new InstancedProp(scene, assets, "lilypad", padM),
+    new InstancedProp(scene, assets, "lily", lilyM),
+  ];
+
   // ---------- 木箱營地 ----------
   function camp(cx, cz) {
     const props = [
@@ -522,11 +574,15 @@ export function buildWorld(scene, assets, collision) {
       lake.setTime(t);
       ground.setTime(t);
       fish.update(t);
+      for (const p of plants) p.setTime(t);
     },
     stream,
     lake,
     occluders,
     isGrassAt: ground.isGrassAt,
+    // 挖寶土堆可以放的地方:草地或泥土路(平地),不在農舍保留區裡
+    canDig: (x, z) => terrainHeight(x, z) === 0 && lakeSDF(x, z) > 4 && ravineDistance(x, z) > RAVINE_HALF + 3
+      && !inReserved(x, z, 2),
     playerStart,
     startYaw,
     exitPos: new THREE.Vector3(ex, 0, ez),
