@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Escape from Barkov v0.8</title>
+  <title>Escape from Barkov v0.9</title>
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #241c12; font-family: system-ui, "Noto Sans TC", sans-serif; }
     #app { width: 100%; height: 100%; }
@@ -66,6 +66,84 @@
     }
     #log .ok { color: #9fd66f; } #log .warn { color: #ffc963; } #log .danger { color: #ff7a6b; }
 
+    /* ---- 挖掘小遊戲 ---- */
+    #digbar {
+      position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%); z-index: 22;
+      width: min(380px, 88vw); padding: 10px 16px 9px; border-radius: 12px; color: #ffe9bd;
+      background: rgba(20, 15, 8, .78); border: 1px solid rgba(138, 111, 74, .6); user-select: none;
+    }
+    #digbar .dig-head, #digbar .dig-foot { display: flex; justify-content: space-between; font-size: 13px; }
+    #digbar .dig-foot { margin-top: 7px; font-size: 12px; color: #b9a27b; }
+    #digbar kbd { background: #4a3b26; border: 1px solid #6d5539; border-radius: 4px; padding: 0 5px; font-family: inherit; color: #ffe9bd; }
+    #digbar .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-left: 5px;
+      border: 1px solid #d9b77a; vertical-align: middle; }
+    #digbar .dot.on { background: #ffc963; border-color: #ffc963; }
+    #digbar .dot.lost { background: #6b5638; border-color: #6b5638; }
+    #digbar .dig-track { position: relative; height: 22px; margin-top: 8px; border-radius: 11px;
+      background: linear-gradient(#5a4227, #3f2e1b); border: 1px solid #7a5f3c; }
+    #digbar .dig-zone { position: absolute; top: 0; bottom: 0; border-radius: 9px;
+      background: rgba(127, 207, 106, .55); border: 1px solid rgba(170, 240, 150, .9); }
+    #digbar .dig-perfect { position: absolute; top: 2px; bottom: 2px; left: 50%; transform: translateX(-50%);
+      border-radius: 6px; background: #ffd75a; }
+    #digbar .dig-needle { position: absolute; top: -5px; width: 4px; height: 32px; margin-left: -2px;
+      border-radius: 2px; background: #fff; box-shadow: 0 0 6px rgba(0,0,0,.6); }
+    #digbar .dig-judge { position: absolute; left: 0; right: 0; top: -30px; text-align: center;
+      font-size: 20px; font-weight: 700; text-shadow: 0 2px 0 rgba(0,0,0,.5); opacity: 0; }
+    #digbar .dig-judge.pop { animation: judgepop .6s ease-out; }
+    #digbar .dig-judge.perfect { color: #ffd75a; } #digbar .dig-judge.good { color: #a6ef8f; }
+    #digbar .dig-judge.miss { color: #ff8a7a; }
+    #digbar.shake { animation: digshake .25s; }
+    @keyframes judgepop { 0% { opacity: 0; transform: translateY(6px) scale(.8); } 25% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-8px); } }
+    @keyframes digshake { 25% { transform: translateX(calc(-50% - 6px)); } 75% { transform: translateX(calc(-50% + 6px)); } }
+
+    /* 挖到寶的卡片 */
+    #reveal {
+      position: fixed; top: 14%; left: 50%; transform: translateX(-50%); z-index: 23;
+      width: min(300px, 86vw); padding: 16px 20px 14px; border-radius: 16px; text-align: center;
+      background: rgba(28, 22, 13, .92); color: #f0e3c8; border: 2px solid var(--rc, #c9bfae);
+      box-shadow: 0 0 28px -4px var(--rc, transparent); animation: revealin .35s ease-out; pointer-events: none;
+    }
+    #reveal .rv-icon { font-size: 54px; line-height: 1.2; }
+    #reveal .rv-name { font-size: 20px; font-weight: 700; margin-top: 2px; }
+    #reveal .rv-rarity { font-size: 13px; font-weight: 600; color: var(--rc); letter-spacing: 1px; text-transform: uppercase; }
+    #reveal .rv-desc { font-size: 13px; color: #cdb896; margin-top: 8px; line-height: 1.5; }
+    #reveal .rv-note { font-size: 12px; color: #ffd75a; margin-top: 6px; }
+    #reveal .rv-new { position: absolute; top: -12px; right: -10px; background: #ff7a59; color: #fff;
+      font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 10px; transform: rotate(8deg); }
+    @keyframes revealin { from { opacity: 0; transform: translate(-50%, 14px) scale(.9); } to { opacity: 1; transform: translateX(-50%); } }
+
+    /* 寶物圖鑑 */
+    #dex-btn { cursor: pointer; }
+    #book {
+      position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.55);
+    }
+    #book .card {
+      width: min(620px, 92vw); max-height: 88vh; overflow-y: auto; box-sizing: border-box;
+      background: #2c2418; color: #f0e3c8; border: 1px solid #8a6f4a; border-radius: 14px; padding: 18px 22px;
+    }
+    #book .book-head { display: flex; align-items: center; gap: 12px; }
+    #book .book-head h3 { margin: 0; font-size: 20px; }
+    #book .book-count { color: #ffc963; font-weight: 600; flex: 1; }
+    #book .book-close { background: none; border: 1px solid #6d5539; color: #f0e3c8; border-radius: 8px;
+      width: 32px; height: 32px; cursor: pointer; font-size: 15px; }
+    #book .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; margin-top: 14px; }
+    #book .cell {
+      position: relative; aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: 28px; background: #3a2f20; border: 2px solid var(--rc); cursor: pointer; user-select: none;
+    }
+    #book .cell.unfound { border-color: color-mix(in srgb, var(--rc) 35%, transparent); color: #6b5638; font-size: 22px; font-weight: 700; }
+    #book .cell.sel { outline: 2px solid #fff; outline-offset: 1px; }
+    #book .cell .n { position: absolute; right: 4px; bottom: 1px; font-size: 11px; color: #e8dcc0; }
+    #book .cell .star { position: absolute; left: 4px; top: 1px; font-size: 11px; color: #ffd75a; }
+    #book .book-detail { display: flex; gap: 14px; align-items: center; margin-top: 14px; min-height: 76px;
+      padding: 10px 14px; border-radius: 10px; background: #231c12; }
+    #book .book-detail .big { font-size: 44px; width: 56px; text-align: center; }
+    #book .book-detail .nm { font-size: 16px; font-weight: 700; }
+    #book .book-detail .rr { font-size: 12px; font-weight: 600; color: var(--rc); text-transform: uppercase; letter-spacing: 1px; }
+    #book .book-detail .ds { font-size: 13px; color: #cdb896; margin-top: 3px; line-height: 1.5; }
+    #book .book-hint { margin-top: 10px; font-size: 12px; color: #8f7a58; text-align: center; }
+
     /* ---- 受擊回饋 ---- */
     /* 傷害方向：一圈容器旋轉到來向，子元素是頂端的一道弧光 */
     #dmg-dirs { position: fixed; inset: 0; z-index: 21; pointer-events: none; }
@@ -97,7 +175,7 @@
     @keyframes extractpulse { from { opacity: .95; } to { opacity: 0; } }
 
     @media (prefers-reduced-motion: reduce) {
-      #dmg-dirs .arc, #hurt-flash.on, #extract-flash.on { animation-duration: .01s; }
+      #dmg-dirs .arc, #hurt-flash.on, #extract-flash.on, #reveal, #digbar.shake, #digbar .dig-judge.pop { animation-duration: .01s; }
     }
 
     /* ---- 結束畫面 ---- */
@@ -127,7 +205,7 @@
 
   <div id="title-screen">
     <h1>🐕 Escape from Barkov</h1>
-    <div class="ver">v0.8.0 — new corgi &amp; ducks, digging, reeds and lilies</div>
+    <div class="ver">v0.9.0 — treasure digging, rarities and a Treasure Book</div>
     <button id="btn-start">Start Game</button>
     <button id="btn-howto">How to Play</button>
   </div>
@@ -138,6 +216,8 @@
       <div><kbd>W A S D</kbd> Run · hold <kbd>Shift</kbd> to walk</div>
       <div><kbd>Mouse</kbd> Aim · <kbd>Left Click</kbd> Shoot</div>
       <div><kbd>E</kbd> Pick up items / dig at a 🦴 mound · <kbd>1 2 3</kbd> Use hotbar item</div>
+      <div>Digging: press <kbd>E</kbd> or <kbd>Space</kbd> when the needle is in the green (gold = perfect)</div>
+      <div><kbd>Tab</kbd> Treasure Book — rarer treasures are buried deeper</div>
       <div>Watch out: ducks chase you and peck when they wind up</div>
       <div><kbd>F</kbd> Extract at the exit gate · <kbd>M</kbd> Toggle music</div>
       <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;">Close</button>
@@ -148,11 +228,34 @@
     <span>❤️ <b id="hp">100</b></span>
     <span>🔫 <b id="ammo">30</b></span>
     <span>💰 <b id="loot">0</b></span>
+    <span id="dex-btn" title="Treasure Book (Tab)">📖 <b id="dex-count">0</b></span>
   </div>
   <div id="hotbar" class="hidden">
     <div class="slot">1</div><div class="slot">2</div><div class="slot">3</div>
   </div>
   <div id="tip" class="hidden"></div>
+  <div id="digbar" class="hidden">
+    <div class="dig-judge"></div>
+    <div class="dig-head"><span>Digging…</span><span>Depth <span class="dig-depth"></span></span></div>
+    <div class="dig-track"><div class="dig-zone"><div class="dig-perfect"></div></div><div class="dig-needle"></div></div>
+    <div class="dig-foot"><span><kbd>E</kbd> / <kbd>Space</kbd> in the green · gold = perfect</span><span>Slips <span class="dig-tries"></span></span></div>
+  </div>
+  <div id="reveal" class="hidden">
+    <div class="rv-new">NEW!</div>
+    <div class="rv-icon"></div>
+    <div class="rv-name"></div>
+    <div class="rv-rarity"></div>
+    <div class="rv-desc"></div>
+    <div class="rv-note"></div>
+  </div>
+  <div id="book" class="hidden">
+    <div class="card">
+      <div class="book-head"><h3>📖 Treasure Book</h3><span class="book-count"></span><button class="book-close" title="Close">✕</button></div>
+      <div class="book-grid"></div>
+      <div class="book-detail"></div>
+      <div class="book-hint">Tab / Esc to close · your collection is saved in this browser</div>
+    </div>
+  </div>
   <div id="log" class="hidden"></div>
   <div id="hurt-flash"></div>
   <div id="extract-flash"></div>

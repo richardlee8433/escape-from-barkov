@@ -11,11 +11,14 @@ import { Combat } from "./systems/Combat.js";
 import { Spawner } from "./systems/Spawner.js";
 import { Inventory } from "./systems/Inventory.js";
 import { DigSpots } from "./systems/DigSpots.js";
+import { Collection } from "./systems/Collection.js";
 import { ExitSystem } from "./systems/ExitSystem.js";
 import { Sfx } from "./audio/Sfx.js";
 import { Bgm } from "./audio/Bgm.js";
 import { HUD } from "./ui/HUD.js";
 import { Screens } from "./ui/Screens.js";
+import { DigUI } from "./ui/DigUI.js";
+import { CollectionUI } from "./ui/CollectionUI.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
 const screens = new Screens();
@@ -38,13 +41,16 @@ screens.onStart(async (onProgress) => {
   const spawner = new Spawner(game.scene, assets, collision);
   spawner.spawnEnemies(BAL.enemy.count, player.pos);
   spawner.scatterItems(player.pos);
-  const digSpots = new DigSpots(game.scene, assets, collision, world.canDig, player.pos);
+  const collection = new Collection();
+  const digSpots = new DigSpots(game.scene, assets, collision, world.canDig, player.pos, collection);
   const inventory = new Inventory(player, spawner, digSpots);
   const exitSystem = new ExitSystem(world.exitPos, player, game.input);
 
   // 回饋層(純事件訂閱,不改遊戲狀態)
   const vfx = new Vfx(game.scene);
   const hud = new HUD();
+  const digUI = new DigUI(digSpots);
+  const book = new CollectionUI(collection);
   hud.camYaw = rig.yaw;
   new Sfx();
   new Bgm();
@@ -54,6 +60,14 @@ screens.onStart(async (onProgress) => {
     if (!game.paused) combat.firePlayer(player, rig.aimPoint);
   });
   bus.on("player:died", () => (game.paused = true));
+  // 翻圖鑑時遊戲暫停(挖到一半就先中斷,土堆留著)
+  let pausedBefore = false;
+  bus.on("book:open", () => {
+    digSpots.cancel("book");
+    pausedBefore = game.paused;
+    game.paused = true;
+  });
+  bus.on("book:close", () => (game.paused = pausedBefore));
   bus.on("victory", () => {
     game.paused = true;
     log("撤離成功!", "ok");
@@ -64,7 +78,7 @@ screens.onStart(async (onProgress) => {
   game.addSystem({ update: (dt) => spawner.updateEnemies(dt, player, combat) });
   game.addSystem({ update: (dt) => combat.update(dt, spawner.enemies, player) });
   game.addSystem({ update: () => exitSystem.update() });
-  game.addSystem({ update: () => digSpots.update(player) });
+  game.addSystem({ update: (dt) => digSpots.update(player, dt) });
 
   // 畫面系統(每幀)
   game.addSystem({
@@ -80,11 +94,12 @@ screens.onStart(async (onProgress) => {
       world.grass.setTime(t);
       world.updateWater(t);
       spawner.updateItems(t);
+      digUI.frame();
       vfx.frame(dt, game.camera, new Set(spawner.enemies));
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots }; // Console 檢查用
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book }; // Console 檢查用
 
   game.start();
   hud.show();

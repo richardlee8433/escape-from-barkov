@@ -9,8 +9,13 @@ export class Input {
 
     addEventListener("keydown", (e) => {
       const k = e.key.toLowerCase();
+      // 空白鍵(挖)與 Tab(圖鑑)不要捲動頁面或移動焦點
+      if (k === " " || k === "tab") e.preventDefault();
       if (!e.repeat) {
         if (k === "e") bus.emit("input:pickup");
+        else if (k === " ") bus.emit("input:dig");
+        else if (k === "tab") bus.emit("input:collection");
+        else if (k === "escape") bus.emit("input:close");
         else if (k === "m") bus.emit("input:bgm");
         else if (e.code === "Digit1") bus.emit("input:slot", 0);
         else if (e.code === "Digit2") bus.emit("input:slot", 1);

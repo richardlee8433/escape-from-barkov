@@ -21,7 +21,7 @@ export class Inventory {
     if (!item) {
       const spot = this.digSpots?.nearest(this.player.pos, BAL.items.digRange);
       if (spot) {
-        this.digSpots.dig(spot, this.player, (type) => this.spawner.dropItem(type, spot.x, spot.z));
+        this.digSpots.dig(spot, this.player);
         return;
       }
       log("Nothing nearby to pick up", "info");

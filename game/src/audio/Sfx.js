@@ -33,7 +33,17 @@ export class Sfx {
     bus.on("enemy:died", () => { beep(420, 0.08); beep(260, 0.16); }); // 「哇→啊」
     bus.on("enemy:peck", () => beep(1500, 0.04, "square", 0.05)); // 「啄!」
     bus.on("dig:start", () => beep(180, 0.08, "sawtooth", 0.04));
-    bus.on("dig:found", () => { beep(990, 0.07); beep(1480, 0.14); });
-        bus.on("victory", () => { beep(660, 0.12); beep(880, 0.12); beep(1320, 0.25); });
+    bus.on("dig:hit", ({ result }) => {
+      if (result === "perfect") { beep(1320, 0.05); beep(1760, 0.09, "triangle"); }
+      else if (result === "good") beep(700, 0.07, "triangle");
+      else beep(150, 0.14, "sawtooth", 0.05);
+    });
+    bus.on("dig:cancel", () => beep(240, 0.1, "sine"));
+    // 挖到寶:稀有度越高,琶音越長
+    bus.on("dig:found", ({ tier }) => {
+      const notes = [523, 659, 784, 1047, 1319, 1568].slice(0, tier + 2);
+      notes.forEach((f, i) => setTimeout(() => beep(f, 0.12, "triangle", 0.07), i * 90));
+    });
+    bus.on("victory", () => { beep(660, 0.12); beep(880, 0.12); beep(1320, 0.25); });
   }
 }

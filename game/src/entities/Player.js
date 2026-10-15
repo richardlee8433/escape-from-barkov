@@ -23,7 +23,7 @@ export class Player {
     scene.add(this.root);
     this.anim = new Animator(model, assets.clips("corgi"));
     this.anim.play("Idle");
-    this.dig = null;  // 挖地中:{ t, yaw, onDone }
+    this.dig = null;  // 挖地中:{ yaw, onCancel };何時挖完由 DigSpots 的小遊戲決定
     this.proud = 0;   // 挖到寶之後看鏡頭撒嬌的剩餘秒數
 
     // Loot 跟著「敵人死亡」這個事件走,而不是由 Combat 直接呼叫進來
@@ -50,19 +50,18 @@ export class Player {
     const { x, z } = input.axes();
     const moving = !!(x || z);
 
-    // 挖地:原地不動、面向土堆;挖完交出寶物,接著轉向鏡頭撒嬌
+    // 挖地:原地面向土堆一直挖,直到小遊戲結束(endDig);一移動就中斷
     if (this.dig) {
-      this.dig.t -= dt;
-      this._turnToward(this.dig.yaw, 0.2, collision);
-      this.anim.play("Dig");
-      if (this.dig.t <= 0) {
-        const done = this.dig.onDone;
+      if (moving) {
+        const cancel = this.dig.onCancel;
         this.dig = null;
-        this.proud = BAL.player.proudTime;
-        done?.();
+        cancel?.();
+      } else {
+        this._turnToward(this.dig.yaw, 0.2, collision);
+        this.anim.play("Dig");
+        this.anim.update(dt);
+        return;
       }
-      this.anim.update(dt);
-      return;
     }
     if (this.proud > 0) {
       if (moving) {
@@ -111,13 +110,19 @@ export class Player {
     if (!collision.turn(this.pos, this.body())) this.root.rotation.y = prev;
   }
 
-  // 開始挖地(朝向 yaw);挖完呼叫 onDone。已經在挖就回傳 false
-  startDig(yaw, onDone) {
+  // 開始挖地(朝向 yaw);中途移動會呼叫 onCancel。已經在挖就回傳 false
+  startDig(yaw, onCancel) {
     if (!this.alive || this.dig) return false;
     this.proud = 0;
-    this.dig = { t: BAL.player.digTime, yaw, onDone };
+    this.dig = { yaw, onCancel };
     bus.emit("dig:start", { x: this.pos.x, z: this.pos.z });
     return true;
+  }
+
+  // 挖完(或被打斷);挖到寶就轉向鏡頭撒嬌
+  endDig(proud) {
+    this.dig = null;
+    if (proud && this.alive) this.proud = BAL.player.proudTime;
   }
 
   // fromX/fromZ：傷害來向（指回射擊者），給方向指示器用
