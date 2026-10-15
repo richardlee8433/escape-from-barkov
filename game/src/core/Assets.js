@@ -28,6 +28,14 @@ export class Assets {
   constructor() {
     this.lib = new Map(); // name → { scene, size }
     this.loader = new GLTFLoader();
+    // GLB 內嵌的貼圖改用 <img> 載入(TextureLoader),不用 ImageBitmapLoader:
+    // 後者是 fetch(blob:),在限制 fetch 來源的主機上會被擋,模型就沒有貼圖。
+    this.loader.register((parser) => {
+      parser.textureLoader = new THREE.TextureLoader(parser.options.manager);
+      parser.textureLoader.setCrossOrigin(parser.options.crossOrigin);
+      parser.textureLoader.setRequestHeader(parser.options.requestHeader);
+      return { name: "barkov_img_textures" };
+    });
   }
 
   async loadAll(onProgress) {
@@ -43,10 +51,29 @@ export class Assets {
     );
   }
 
+  // 取得 glTF。一般網站直接載 .glb;
+  // 「.glb.json」是給限制較嚴的主機(claude.ai Artifact)的包裝:整個 GLB 以 base64 放在 JSON 裡。
+  // 那種主機不提供 .glb 類型,也不准 fetch data: 網址,所以在這裡自己解碼成 ArrayBuffer 再解析。
+  _fetchGltf(url, onLoad, onError) {
+    if (!url.endsWith(".glb.json")) return this.loader.load(url, onLoad, undefined, onError);
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(({ glb }) => {
+        const bin = atob(glb);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        this.loader.parse(bytes.buffer, url.slice(0, url.lastIndexOf("/") + 1), onLoad, onError);
+      })
+      .catch(onError);
+  }
+
   _load(name, url) {
     const baked = BLENDER.includes(name);
     return new Promise((resolve, reject) => {
-      this.loader.load(url, (gltf) => {
+      this._fetchGltf(url, (gltf) => {
         const root = gltf.scene;
         root.traverse((o) => {
           if (o.isMesh) {
@@ -74,7 +101,7 @@ export class Assets {
         const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
         this.lib.set(name, { scene, size, skinned });
         resolve();
-      }, undefined, reject);
+      }, (err) => reject(new Error(`${name}: ${err?.message || err}`)));
     });
   }
 

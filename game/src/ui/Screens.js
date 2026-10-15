@@ -18,11 +18,22 @@ export class Screens {
 
   onStart(fn) {
     this.startBtn.onclick = async () => {
+      // 按下就立刻有回饋:第一個模型載完之前,按鈕文字也要變
       this.startBtn.disabled = true;
-      await fn((done, total) => {
-        this.startBtn.textContent = `Loading… ${done}/${total}`;
-      });
-      this.title.classList.add("hidden");
+      this.startBtn.textContent = "Loading…";
+      try {
+        await fn((done, total) => {
+          this.startBtn.textContent = `Loading… ${done}/${total}`;
+        });
+        this.title.classList.add("hidden");
+      } catch (err) {
+        // 載入失敗要說出來,不能讓按鈕看起來「沒反應」
+        console.error(err);
+        this.startBtn.textContent = "Load failed — click to retry";
+        this.startBtn.title = String(err?.message || err);
+        this.startBtn.disabled = false;
+        this.startBtn.onclick = () => location.reload();
+      }
     };
   }
 
