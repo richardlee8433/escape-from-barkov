@@ -106,6 +106,9 @@ python tools/blender/render_preview.py      # → docs/blender_preview.jpg (Cycl
 | `materials.py` | procedural materials |
 | `assets.py` | one builder per asset + the asset table (texture size, AO distance, bake groups) |
 | `characters.py` | corgi & duck: modeling, bone layout and animation clips |
+| `trees.py` | trees: branching skeleton + alpha-cutout leaf cards with procedurally painted leaf / needle textures |
+
+**Trees** are built like real ones instead of a blob canopy: a trunk with root flare splits into limbs and twigs (spruces get whorls of drooping branches), and the foliage is hundreds of leaf cards — quads textured with a leaf spray painted procedurally in numpy, cut out with alpha test in game (so their shadows are dappled too). The card normals point out from the crown center and a vertex color darkens the inside of the crown, so the canopy shades as one volume; while baking the bark, a shrunken copy of the leaves occludes the branches inside the crown. A small shader tweak raises the alpha with the mip level so distant trees don't go bald.
 
 ## Credits
 

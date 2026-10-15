@@ -128,6 +128,9 @@ export class CameraRig {
         ghost.transparent = true;
         ghost.opacity = 0.22;
         ghost.depthWrite = false;
+        // 樹葉的 shader 修改不會跟著 clone 過來,要自己帶上
+        ghost.onBeforeCompile = m.material.onBeforeCompile;
+        ghost.customProgramCacheKey = m.material.customProgramCacheKey;
         m.userData.ghostMat = ghost;
       }
       m.material = faded ? m.userData.ghostMat : m.userData.solidMat;

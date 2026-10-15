@@ -625,11 +625,16 @@ def bake_and_export(ob, path, res=1024, samples=8, ao_dist=1.0, normal_scale=0.5
 
     if gnd:
         gnd.select_set(False)
-    # 角色:烘焙完(靜止姿勢)才綁骨架、做動畫,匯出時連骨架一起選
-    rig = post_bake(ob) if post_bake else None
+    # 烘焙 AO 用的暫時遮擋物(例如樹的葉片)不匯出
+    for o in [o for o in scene.objects if o.name.startswith("_occ")]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    # 烘焙完才加上的東西,與主網格一起匯出:角色的骨架(靜止姿勢烘焙完才綁)、樹的葉片(自帶透明貼圖)
+    extra = post_bake(ob) if post_bake else None
+    extras = [] if extra is None else list(extra) if isinstance(extra, (list, tuple)) else [extra]
+    rig = any(e.type == "ARMATURE" for e in extras)
     _select_only(ob)
-    if rig:
-        rig.select_set(True)
+    for e in extras:
+        e.select_set(True)
     bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
@@ -639,7 +644,8 @@ def bake_and_export(ob, path, res=1024, samples=8, ao_dist=1.0, normal_scale=0.5
         export_apply=True,
         export_yup=True,
         export_materials="EXPORT",
-        export_vertex_color="NONE",
+        export_vertex_color="NAME",          # 只有名為 shade 的頂點色會匯出(樹葉的明暗)
+        export_vertex_color_name="shade",
         export_animations=bool(rig),
         export_skins=bool(rig),
         export_animation_mode="NLA_TRACKS" if rig else "ACTIONS",

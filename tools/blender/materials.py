@@ -195,18 +195,6 @@ def _foliage(nb, dark, mid, light, clump=7.0):
     return base, height
 
 
-@material("foliage_pine")
-def foliage_pine(nb):
-    c, h = _foliage(nb, "#14260f", "#2c4a22", "#57773a", 2.6)
-    return dict(color=c, height=h, bump=0.7, bump_dist=0.06, rough=0.95, ao=0.95)
-
-
-@material("foliage_round")
-def foliage_round(nb):
-    c, h = _foliage(nb, "#1d3313", "#3b5d27", "#7b9c48", 2.2)
-    return dict(color=c, height=h, bump=0.7, bump_dist=0.06, rough=0.95, ao=0.95)
-
-
 @material("foliage_bush")
 def foliage_bush(nb):
     c, h = _foliage(nb, "#1f3a16", "#3f672c", "#7ea24b", 4.0)

@@ -25,6 +25,34 @@ const SPECIAL = {
   bullet: MODEL_BASE + "pickups-blaster/bullet-foam.glb",
 };
 
+// 樹葉面片(trees.py):透明葉叢貼圖用 alpha test 切出葉形(陰影也跟著是一片片的葉影),
+// 雙面顯示。法線在 Blender 裡已改成「從樹冠中心往外」,背面不要再翻轉法線,
+// 否則轉到背面的葉片會突然變暗,整個樹冠斑斑駁駁。
+const NORMAL_NO_FLIP = THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", "");
+export function setupLeaves(m) {
+  m.transparent = false;
+  m.depthWrite = true;
+  m.alphaTest = 0.45;
+  m.side = THREE.DoubleSide;
+  m.metalness = 0;
+  m.roughness = 0.85;
+  if (m.map) m.map.anisotropy = 4;
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <normal_fragment_begin>", NORMAL_NO_FLIP)
+      // 遠處的 mipmap 會把葉緣的透明度平均掉,alpha test 後葉子越縮越小、最後整棵樹變光禿。
+      // 依 mip 層級把 alpha 拉高,遠近看起來一樣茂密。
+      .replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+         vec2 texel = vMapUv * 512.0;
+         float lod = max(0.0, log2(max(length(dFdx(texel)), length(dFdy(texel)))));
+         diffuseColor.a *= 1.0 + lod * 0.35;`
+      );
+  };
+  m.customProgramCacheKey = () => "leaves";
+}
+
 export class Assets {
   constructor() {
     this.lib = new Map(); // name → { scene, size, skinned, clips }
@@ -80,7 +108,9 @@ export class Assets {
           if (o.isMesh) {
             o.castShadow = true;
             o.receiveShadow = true;
-            if (o.material && baked) {
+            if (o.material && baked && o.material.name.endsWith("_leaves")) {
+              setupLeaves(o.material);
+            } else if (o.material && baked) {
               // 烘焙貼圖已含 AO;只補上斜角取樣讓俯視角下的貼圖不糊
               for (const t of [o.material.map, o.material.normalMap]) if (t) t.anisotropy = 8;
               o.material.metalness = 0;

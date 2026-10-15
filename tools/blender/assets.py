@@ -74,67 +74,7 @@ def build_rock(name, seed, scale):
     return finish_object(a.to_object())
 
 
-# ================================================================ 樹
-
-def build_conifer(name, seed, tiers=5, height=7.0):
-    rng = random.Random(seed)
-    a = Asset(name)
-    trunk = limb((0, 0, -0.1), (0, 0, height * 0.72), 0.24, 0.08, 12)
-    displace(trunk, 0.025, 3.0, seed)
-    a.add(trunk, "bark")
-
-    parts = []
-    base_z = 1.5
-    top_z = height - 1.3
-    for i in range(tiers):
-        t = i / (tiers - 1)
-        z = lerp(base_z, top_z, t)
-        r = lerp(1.8, 0.65, t ** 0.9)
-        h = lerp(1.75, 1.2, t)
-        tier = blob(1.0, 4, (r, r, h * 0.62), loc=(rng.uniform(-0.08, 0.08), rng.uniform(-0.08, 0.08), z),
-                    amp=0.16, freq=2.4, seed=seed + i * 1.7, amp2=0.06, freq2=7.0)
-        # 下緣往內收、往下垂:像一層層垂落的枝葉
-        for v in tier.verts:
-            dz = v.co.z - z
-            if dz < 0:
-                v.co.z = z + dz * 0.75
-        parts.append(tier)
-    parts.append(blob(1.0, 3, (0.4, 0.4, 0.75), loc=(0, 0, height - 0.75), amp=0.12, freq=2.0, seed=seed + 9))
-    fol = _remesh_decimate(merge(*parts), 0.06, 2800, 2)
-    displace(fol, 0.045, 3.5, seed + 2)
-    a.add(fol, "foliage_pine", tint=(rng.uniform(0.92, 1.05),) * 3)
-    return finish_object(a.to_object())
-
-
-def build_round_tree(name, seed, height=7.5):
-    rng = random.Random(seed)
-    a = Asset(name)
-    top = height * 0.55
-    trunk = limb((0, 0, -0.1), (0.05, 0.02, top + 0.4), 0.32, 0.16, 12)
-    displace(trunk, 0.03, 2.5, seed)
-    a.add(trunk, "bark")
-    for k in range(3):
-        ang = k * 2.1 + rng.uniform(-0.3, 0.3)
-        s = Vector((0, 0, top * rng.uniform(0.7, 0.9)))
-        e = s + Vector((math.cos(ang) * 1.0, math.sin(ang) * 1.0, 1.1))
-        a.add(limb(s, e, 0.11, 0.05, 8), "bark")
-
-    cz = height * 0.68
-    spheres = []
-    for i in range(14):
-        while True:
-            p = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1)))
-            if p.length <= 1:
-                break
-        p = Vector((p.x * 1.55, p.y * 1.55, p.z * 1.05 + 0.1))
-        r = rng.uniform(0.85, 1.3)
-        spheres.append(blob(r, 3, (1, 1, 0.9), loc=(p.x, p.y, cz + p.z), amp=0.12, freq=2.0, seed=seed + i))
-    fol = _remesh_decimate(merge(*spheres), 0.07, 3200, 3)
-    displace(fol, 0.12, 1.6, seed + 4)
-    displace(fol, 0.04, 5.0, seed + 5)
-    a.add(fol, "foliage_round", tint=(rng.uniform(0.92, 1.05),) * 3)
-    return finish_object(a.to_object())
-
+# ================================================================ 灌木、樹樁、木頭(樹在 trees.py)
 
 def build_bush(name, seed, flowers=True):
     rng = random.Random(seed)
@@ -660,6 +600,7 @@ def build_dig_mound(name, seed):
 
 # ================================================================ 清單
 
+from trees import add_leaves, build_broadleaf, build_conifer  # noqa: E402
 from characters import build_corgi, build_duck, rig_corgi, rig_duck  # noqa: E402
 
 ASSETS = {
@@ -668,10 +609,11 @@ ASSETS = {
     "duck": (build_duck, dict(seed=82), 1024, 0.3, None, {"post_bake": rig_duck}),
     # name: (builder, kwargs, 貼圖解析度, AO 距離[, 烘焙群組])
     "cottage": (build_cottage, dict(seed=1), 2048, 1.2, {"roof": ["thatch"]}),
-    "tree_conifer_a": (build_conifer, dict(seed=11, tiers=5, height=7.0), 1024, 1.0),
-    "tree_conifer_b": (build_conifer, dict(seed=12, tiers=6, height=8.0), 1024, 1.0),
-    "tree_round_a": (build_round_tree, dict(seed=21, height=7.5), 1024, 1.2),
-    "tree_round_b": (build_round_tree, dict(seed=22, height=6.5), 1024, 1.2),
+    # 樹:枝幹烘焙樹皮;葉片在烘焙後加上(自帶透明葉叢貼圖),見 trees.py
+    "tree_conifer_a": (build_conifer, dict(seed=11, height=7.0), 1024, 1.0, None, {"post_bake": add_leaves}),
+    "tree_conifer_b": (build_conifer, dict(seed=12, height=8.0), 1024, 1.0, None, {"post_bake": add_leaves}),
+    "tree_round_a": (build_broadleaf, dict(seed=21, height=7.5), 1024, 1.2, None, {"post_bake": add_leaves}),
+    "tree_round_b": (build_broadleaf, dict(seed=22, height=6.5), 1024, 1.2, None, {"post_bake": add_leaves}),
     "rock_a": (build_rock, dict(seed=31, scale=(1.0, 0.8, 0.55)), 1024, 0.6),
     "rock_b": (build_rock, dict(seed=32, scale=(1.0, 0.9, 0.75)), 1024, 0.6),
     "rock_c": (build_rock, dict(seed=33, scale=(1.0, 0.55, 0.45)), 1024, 0.6),
