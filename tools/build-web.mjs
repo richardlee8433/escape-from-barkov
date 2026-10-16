@@ -140,7 +140,7 @@ for (const f of walk(OUT)) {
   const html = fs.readFileSync(path.join(OUT, "index.html"), "utf8");
   const head = html.slice(html.indexOf("<head>") + 6, html.indexOf("</head>"))
     .replace(/<meta[^>]*>\s*/g, "")
-    .replace(/<title>.*?<\/title>/, "<title>Escape from Barkov</title>")
+    .replace(/<title>.*?<\/title>/, "<title>Dig, Corgi, Dig!</title>")
     .replace("<style>", "<style>\n    :root { color-scheme: dark; }");
   const body = html.slice(html.indexOf("<body>") + 6, html.indexOf("</body>"));
   fs.writeFileSync(path.join(ART, "index.html"), head.trim() + "\n" + body.trim() + "\n");

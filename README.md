@@ -1,4 +1,6 @@
-# 🐕 Escape from Barkov
+# 🐕 Dig, Corgi, Dig!
+
+*(formerly Escape from Barkov)*
 
 A cozy top-down treasure hunt: a corgi sniffs out and digs up buried treasure in a village full of mischievous ducks, then heads for the exit — inspired by the look and feel of *Escape from Duckov*, minus the guns. Built with [Three.js](https://threejs.org/), no game engine, no bundler.
 
