@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { BAL } from "../config/balance.js";
 import { bus } from "../core/EventBus.js";
+import { addFur } from "../render/Fur.js";
 import { Animator } from "../render/Animator.js";
 import { CAMERA_OFFSET } from "../render/CameraRig.js";
 
@@ -19,6 +20,7 @@ export class Player {
     this.root.position.copy(start);
     this.root.rotation.y = yaw;
     const model = assets.instantiate("corgi", BAL.player.height, { center: true });
+    addFur(model);
     this.root.add(model);
     scene.add(this.root);
     this.anim = new Animator(model, assets.clips("corgi"));

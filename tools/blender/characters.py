@@ -62,90 +62,273 @@ def transform(bm, rot=(0, 0, 0), loc=(0, 0, 0), scale=(1, 1, 1)):
 
 
 # ================================================================ 柯基
+# 參考真的潘布魯克柯基:身體長而低、深胸垂得很低、圓圓的屁股、粗脖子,
+# 狐狸臉(楔形頭殼、收尖的吻部)、又高又尖的立耳、超短腿、蓬鬆尾巴。
+# 毛色:紅貂色(背上較深)、白色胸前圍兜/肚子/吻部/鼻樑白線/四隻白襪。
+# 表情:張嘴微笑吐舌頭、杏眼帶高光點。
+#
+# 身體(軀幹、脖子、頭、下巴、四肢、尾巴)是一整張 metaball 皮膚,各部位平滑融合;
+# 每個頂點依「各部位 metaball 場強」分配骨頭權重,脖子、肩膀、大腿轉動時是平滑變形。
+# 眼睛、鼻子、耳朵、舌頭這些小零件才剛性綁在單一骨頭上。
 
-ORANGE = srgb("#cf7a2e")
-ORANGE_DARK = srgb("#a65a1f")
-WHITE = srgb("#f3ede1")
-PINK = srgb("#d9958a")
+RED = srgb("#d1874d")        # 紅貂色(身體側面)
+RED_DARK = srgb("#ab6331")   # 背上的鞍部
+CREAM = srgb("#f1eadc")      # 白毛
+CREAM_WARM = srgb("#ead7bb")  # 白與紅之間的過渡
+PINK = srgb("#e0a596")       # 內耳
+TONGUE = srgb("#e27886")
+MOUTH = srgb("#4a2224")
 
 CORGI_BONES = [
     ("root", (0, 0, 0), None),
-    ("body", (0, 0, 0.42), "root"),
-    ("head", (0, -0.44, 0.6), "body"),
-    ("ear_L", (0.095, -0.5, 0.78), "head"),
-    ("ear_R", (-0.095, -0.5, 0.78), "head"),
-    ("tail", (0, 0.44, 0.5), "body"),
-    ("leg_FL", (0.14, -0.3, 0.36), "body"),
-    ("leg_FR", (-0.14, -0.3, 0.36), "body"),
-    ("leg_BL", (0.15, 0.28, 0.36), "body"),
-    ("leg_BR", (-0.15, 0.28, 0.36), "body"),
+    ("body", (0, 0, 0.34), "root"),
+    ("head", (0, -0.5, 0.55), "body"),
+    ("jaw", (0, -0.63, 0.585), "head"),
+    ("ear_L", (0.07, -0.53, 0.72), "head"),
+    ("ear_R", (-0.07, -0.53, 0.72), "head"),
+    ("tail", (0, 0.39, 0.45), "body"),
+    ("leg_FL", (0.105, -0.36, 0.26), "body"),
+    ("leg_FR", (-0.105, -0.36, 0.26), "body"),
+    ("leg_BL", (0.115, 0.27, 0.28), "body"),
+    ("leg_BR", (-0.115, 0.27, 0.28), "body"),
 ]
+
+MB_K = 0.575  # metaball:表面半徑 = 0.575 × 元素半徑(stiffness 2、threshold 0.6 量出來的)
+
+
+class Meta:
+    """一團 metaball(各元素平滑融合)。元素以「表面半軸長」描述,並標記屬於哪根骨頭。"""
+
+    def __init__(self, name, res=0.0085):
+        self.mb = bpy.data.metaballs.new(name)
+        self.mb.resolution = res
+        self.mb.render_resolution = res
+        self.mb.threshold = 0.6
+        self.ob = bpy.data.objects.new("mb" + name, self.mb)  # 名字不同才不會跟別團 metaball 融在一起
+        bpy.context.scene.collection.objects.link(self.ob)
+        self.parts = []  # (骨頭, 場強函式)
+
+    def ell(self, bone, c, semi, rot=(0, 0, 0), neg=False):
+        R = max(semi)
+        e = self.mb.elements.new(type="ELLIPSOID")
+        e.co = c
+        e.radius = R / MB_K
+        e.size_x, e.size_y, e.size_z = (s / R for s in semi)
+        q = Euler([math.radians(a) for a in rot], "XYZ").to_quaternion()
+        e.rotation = q
+        e.use_negative = neg
+        if not neg:
+            inv = q.inverted()
+            inf = Vector(semi) / MB_K
+            c = Vector(c)
+
+            def field(p, c=c, inv=inv, inf=inf):
+                d = inv @ (p - c)
+                d2 = (d.x / inf.x) ** 2 + (d.y / inf.y) ** 2 + (d.z / inf.z) ** 2
+                return max(0.0, 1 - d2) ** 2
+            self.parts.append((bone, field))
+
+    def cap(self, bone, a, b, r):
+        a, b = Vector(a), Vector(b)
+        e = self.mb.elements.new(type="CAPSULE")
+        e.co = (a + b) / 2
+        e.radius = r / MB_K
+        e.size_x = (b - a).length / 2
+        e.rotation = Vector((1, 0, 0)).rotation_difference((b - a).normalized())
+        inf = r / MB_K
+
+        def field(p, a=a, b=b, inf=inf):
+            ab = b - a
+            t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+            d2 = ((p - (a + ab * t)).length / inf) ** 2
+            return max(0.0, 1 - d2) ** 2
+        self.parts.append((bone, field))
+
+    def weights(self, co, sharp=2.0):
+        acc = {}
+        for bone, f in self.parts:
+            v = f(co)
+            if v > 0:
+                acc[bone] = acc.get(bone, 0.0) + v
+        if not acc:
+            return {"body": 1.0}
+        acc = {b: w ** sharp for b, w in acc.items()}
+        top = sorted(acc.items(), key=lambda kv: -kv[1])[:4]
+        tot = sum(w for _, w in top)
+        return {b: w / tot for b, w in top if w / tot > 0.01}
+
+    def mesh(self, tris):
+        dg = bpy.context.evaluated_depsgraph_get()
+        me = bpy.data.meshes.new_from_object(self.ob.evaluated_get(dg))
+        bm = bmesh.new()
+        bm.from_mesh(me)
+        bpy.data.meshes.remove(me)
+        bpy.data.objects.remove(self.ob)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        # marching cubes 會留下一圈圈的階梯紋(烘焙後像針織紋),先抹平再減面
+        for _ in range(6):
+            bmesh.ops.smooth_vert(bm, verts=bm.verts, factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+        cur = sum(len(f.verts) - 2 for f in bm.faces)
+        if cur > tris:
+            bm = apply_modifiers(bm, [("DECIMATE", dict(ratio=tris / cur))])
+        bm.normal_update()
+        return bm
+
+
+def _corgi_coat(co, n):
+    """整張皮膚的毛色:紅貂色底、背上較深;白色區域彼此平滑過渡。"""
+    x, y, z = co.x, co.y, co.z
+    ax = abs(x)
+    head = sstep(-0.47, -0.55, y)                                  # 頭部區域
+    white = max(
+        sstep(-0.69, -0.74, y) * head,                             # 吻部
+        sstep(0.035, 0.012, ax) * sstep(-0.6, -0.66, y) * sstep(0.79, 0.74, z),  # 鼻樑白線(blaze)
+        sstep(0.625, 0.585, z) * head,                             # 下巴、頰下
+        sstep(-0.36, -0.47, y) * sstep(0.6, 0.47, z),              # 喉嚨
+        sstep(-0.3, -0.46, y) * sstep(0.56, 0.4, z),               # 胸前圍兜
+        sstep(0.23, 0.17, z) * sstep(0.1, -0.4, n.z),              # 肚子(朝下的面)
+        sstep(0.19, 0.11, z),                                      # 四隻白襪
+        sstep(0.26, 0.2, z) * sstep(-0.25, -0.4, y),               # 前腳前側白到手肘
+        sstep(0.4, 0.47, y) * sstep(0.4, 0.3, z) * sstep(0.2, 0.6, -n.z + 0.4),  # 尾巴下緣
+    )
+    # 眉毛上方兩點淺色
+    for sx in (1, -1):
+        d = math.sqrt((x - sx * 0.055) ** 2 + (y + 0.645) ** 2 + (z - 0.735) ** 2)
+        white = max(white, 0.7 * sstep(0.022, 0.01, d))
+    back = sstep(0.42, 0.52, z) * (1 - head) * 0.55                 # 背上的深色鞍部
+    base = mixc(RED, RED_DARK, back)
+    edge = 1 - abs(white - 0.5) * 2                                  # 白紅交界帶一點暖奶油色
+    base = mixc(base, CREAM_WARM, edge * 0.4)
+    return mixc(base, CREAM, white)
+
+
+def _fur_length(co, n):
+    """毛長:胸前圍兜、脖子的鬃毛、屁股、尾巴最長;臉、吻部、腳最短。"""
+    x, y, z = co.x, co.y, co.z
+    k = 0.75
+    k += 0.45 * sstep(-0.3, -0.45, y) * sstep(0.62, 0.4, z)          # 胸前圍兜
+    k += 0.35 * sstep(-0.42, -0.5, y) * sstep(0.45, 0.55, z) * sstep(-0.62, -0.55, y)  # 脖子鬃毛
+    k += 0.3 * sstep(0.15, 0.3, y)                                    # 屁股
+    k += 0.5 * sstep(0.36, 0.44, y) * sstep(0.48, 0.3, z)             # 尾巴
+    k *= 1 - 0.65 * sstep(-0.58, -0.66, y) * sstep(0.56, 0.6, z)      # 臉、吻部
+    k *= 1 - 0.45 * sstep(0.17, 0.08, z)                               # 腳
+    return k
+
+
+def _ear(sx):
+    """立耳:底寬頂尖、前面微凹的耳殼,再加厚度;正面是淺粉的內耳、邊緣一圈白毛。"""
+    H, W = 0.21, 0.075
+    bm = bmesh.new()
+    nu, nv = 10, 8
+    grid = []
+    for i in range(nu + 1):
+        u = i / nu
+        w = W * (1 - u) ** 0.75 * (1 + 0.15 * (1 - u))
+        row = []
+        for j in range(nv + 1):
+            v = -1 + 2 * j / nv
+            cup = 0.026 * (1 - v * v) * (1 - u * u)
+            row.append(bm.verts.new((v * w, cup, u * H)))
+        grid.append(row)
+    for i in range(nu):
+        for j in range(nv):
+            bm.faces.new((grid[i][j], grid[i][j + 1], grid[i + 1][j + 1], grid[i + 1][j]))
+    bm.normal_update()
+    bm = apply_modifiers(bm, [("SOLIDIFY", dict(thickness=0.016, offset=1.0))])
+    transform(bm, rot=(-6, sx * 16, sx * -12), loc=(sx * 0.072, -0.535, 0.71))
+    return bm
 
 
 def build_corgi(name, seed):
     a = Asset(name)
+    m = Meta("corgi")
 
-    # ---- 身體:胸、臀、頸三團融合;肚子、胸前圍兜、屁股是白的
-    torso = _remesh(merge(
-        soft(1.0, (0, -0.16, 0.45), (0.25, 0.3, 0.24), 4),
-        soft(1.0, (0, 0.2, 0.43), (0.24, 0.28, 0.23), 4, seed=2),
-        soft(1.0, (0, -0.37, 0.56), (0.15, 0.14, 0.16), 3, seed=3),
-    ), 0.022, 2400)
-
-    def torso_col(co, n):
-        white = max(
-            sstep(0.40, 0.31, co.z),                                   # 肚子
-            sstep(-0.30, -0.42, co.y) * sstep(0.64, 0.5, co.z),         # 胸前圍兜
-            sstep(0.36, 0.47, co.y) * sstep(0.56, 0.42, co.z),          # 白屁股
-        )
-        back = sstep(0.55, 0.68, co.z) * 0.35                           # 背上深一點
-        return mixc(mixc(ORANGE, ORANGE_DARK, back), WHITE, white)
-    a.add(torso, "fur", bone="body", color_fn=torso_col)
-
-    # ---- 頭:頭殼 + 雙頰 + 吻部,白色鼻樑(blaze)與吻部
-    head = _remesh(merge(
-        soft(1.0, (0, -0.52, 0.69), (0.16, 0.17, 0.15), 4),
-        soft(1.0, (0.08, -0.58, 0.635), (0.09, 0.09, 0.08), 3, seed=4),
-        soft(1.0, (-0.08, -0.58, 0.635), (0.09, 0.09, 0.08), 3, seed=5),
-        soft(1.0, (0, -0.7, 0.625), (0.075, 0.12, 0.07), 3, seed=6),
-    ), 0.014, 1800)
-
-    def head_col(co, n):
-        white = max(
-            sstep(-0.62, -0.69, co.y),                                       # 吻部
-            sstep(0.62, 0.575, co.z) * sstep(-0.5, -0.57, co.y),              # 下巴與頰下
-            sstep(0.05, 0.022, abs(co.x)) * sstep(-0.55, -0.63, co.y),        # 鼻樑白線
-        )
-        return mixc(ORANGE, WHITE, white)
-    a.add(head, "fur", bone="head", color_fn=head_col)
-    a.add(soft(0.036, (0, -0.818, 0.648), (1.1, 0.9, 0.85), 2, amp=0.0), "glossy_black", bone="head")
+    # ---- 軀幹:深胸、身體、肚子、圓屁股
+    m.ell("body", (0, -0.35, 0.335), (0.17, 0.17, 0.17))
+    m.ell("body", (0, -0.45, 0.38), (0.11, 0.09, 0.12))          # 前胸往前凸
+    m.ell("body", (0, -0.08, 0.34), (0.17, 0.31, 0.16))
+    m.ell("body", (0, -0.12, 0.26), (0.13, 0.22, 0.07))         # 肚子
+    m.ell("body", (0, 0.25, 0.36), (0.165, 0.165, 0.155))       # 屁股
+    # ---- 脖子(下半屬於身體、上半屬於頭,轉頭時平滑變形)
+    m.cap("body", (0, -0.39, 0.44), (0, -0.46, 0.52), 0.14)
+    m.cap("head", (0, -0.47, 0.55), (0, -0.52, 0.61), 0.12)
+    # ---- 頭:頭殼、雙頰、吻部(上半)、鼻樑
+    m.ell("head", (0, -0.56, 0.68), (0.11, 0.11, 0.095))
     for sx in (1, -1):
-        a.add(soft(0.026, (sx * 0.074, -0.655, 0.718), (1, 0.7, 1), 2, amp=0.0), "glossy_black", bone="head")
+        m.ell("head", (sx * 0.055, -0.615, 0.635), (0.066, 0.07, 0.058))
+    m.cap("head", (0, -0.65, 0.64), (0, -0.79, 0.628), 0.042)
+    m.ell("head", (0, -0.7, 0.66), (0.038, 0.08, 0.026))
+    # ---- 下巴(張嘴):單獨一根骨頭,吐舌頭時可以開合
+    m.cap("jaw", (0, -0.62, 0.585), (0, -0.755, 0.555), 0.027)
+    m.ell("jaw", (0, -0.6, 0.585), (0.05, 0.05, 0.04))
+    m.ell("head", (0, -0.72, 0.597), (0.03, 0.085, 0.012), rot=(-8, 0, 0), neg=True)  # 嘴巴的縫
+    # ---- 腿:前腳從胸下直直落地,腳掌微微朝外;後腿是大腿肉 + 短小腿
+    for sx, fl, bl in ((1, "leg_FL", "leg_BL"), (-1, "leg_FR", "leg_BR")):
+        # 前腳又短又粗(柯基的腿看起來短,是因為它們很粗)
+        m.cap(fl, (sx * 0.1, -0.35, 0.25), (sx * 0.106, -0.365, 0.075), 0.058)
+        m.ell(fl, (sx * 0.11, -0.385, 0.035), (0.056, 0.07, 0.036), rot=(0, 0, sx * -10))
+        m.ell(bl, (sx * 0.105, 0.25, 0.28), (0.09, 0.125, 0.125))
+        m.cap(bl, (sx * 0.113, 0.29, 0.2), (sx * 0.116, 0.3, 0.075), 0.052)
+        m.ell(bl, (sx * 0.116, 0.283, 0.035), (0.053, 0.066, 0.035), rot=(0, 0, sx * -8))
+    # ---- 蓬鬆尾巴:從屁股上緣往後再往下垂
+    m.cap("tail", (0, 0.36, 0.45), (0, 0.44, 0.42), 0.05)
+    m.cap("tail", (0, 0.44, 0.42), (0, 0.48, 0.32), 0.055)
 
-    # ---- 大尖耳:扁圓錐,朝前那面是粉紅色的內耳
+    skin = m.mesh(9000)
+    from mathutils.bvhtree import BVHTree
+    bvh = BVHTree.FromBMesh(skin)
+
+    def surface(origin, direction):
+        """從頭裡面往外打一條射線,回傳皮膚表面上的點(眼睛、鼻子都貼著真正的表面放)。"""
+        hit = bvh.ray_cast(Vector(origin), Vector(direction).normalized())
+        return hit[0] if hit[0] is not None else Vector(origin)
+    a.add(skin, "fur", color_fn=_corgi_coat, weights_fn=m.weights, fur=_fur_length)
+
+    # ---- 眼睛:深咖啡虹膜 + 黑瞳孔,外圈黑眼線,上面一顆小高光點
+    for sx in (1, -1):
+        gaze = Vector((sx * 0.5, -0.86, 0.05)).normalized()
+        c = surface((sx * 0.02, -0.6, 0.685), gaze) - gaze * 0.009   # 一半嵌在臉裡
+        rim = soft(0.02, c - gaze * 0.003, (1.3, 1.3, 0.85), 2, amp=0.0)
+        a.add(rim, "glossy_black", bone="head")
+
+        def eye_col(co, n, gaze=gaze):
+            d = n.dot(gaze)
+            if d > 0.9:
+                return (0.02, 0.015, 0.012)
+            if d > 0.62:
+                return mixc(srgb("#3b2414"), srgb("#6e4526"), sstep(0.9, 0.66, d))
+            return (0.03, 0.022, 0.018)
+        eyeball = soft(0.017, c, (1.2, 1.2, 0.85), 3, amp=0.0)
+        a.add(eyeball, "eye", bone="head", color_fn=eye_col)
+        up = Vector((0, 0, 1))
+        hl = soft(0.004, c + gaze * 0.017 + up * 0.006 - Vector((sx * 0.004, 0, 0)), (1, 1, 1), 2, amp=0.0)
+        a.add(hl, "eye", bone="head", tint=(1.0, 1.0, 1.0))
+
+    # ---- 鼻子:圓鼓鼓的黑鼻頭 + 人中
+    nose = merge(soft(1.0, (0, -0.826, 0.632), (0.031, 0.022, 0.022), 3, amp=0.0),
+                 soft(1.0, (0, -0.83, 0.622), (0.024, 0.018, 0.014), 2, amp=0.0))
+    a.add(nose, "glossy_black", bone="head")
+    a.add(limb((0, -0.826, 0.612), (0, -0.818, 0.598), 0.004, 0.004, 6), "glossy_black", bone="head")
+    # ---- 嘴:暗色口腔、兩側上揚的黑唇線(微笑)、垂出來的粉紅舌頭
+    a.add(soft(1.0, (0, -0.7, 0.592), (0.036, 0.08, 0.02), 3, amp=0.0), "mouth", bone="head", tint=MOUTH)
+    for sx in (1, -1):
+        a.add(merge(limb((sx * 0.022, -0.8, 0.598), (sx * 0.045, -0.72, 0.596), 0.0055, 0.0055, 6),
+                    limb((sx * 0.045, -0.72, 0.596), (sx * 0.058, -0.655, 0.606), 0.0055, 0.0045, 6)),
+              "glossy_black", bone="head")
+    tongue = soft(1.0, (0, 0, 0), (0.027, 0.045, 0.0075), 3, amp=0.0)
+    transform(tongue, rot=(32, 0, 0), loc=(0, -0.775, 0.56))
+    a.add(tongue, "mouth", bone="jaw", tint=TONGUE)
+
+    # ---- 立耳
     for sx, bname in ((1, "ear_L"), (-1, "ear_R")):
-        from lib import cylinder
-        ear = cylinder(0.078, 0.006, 0.23, 12, caps=True)
-        transform(ear, scale=(1.0, 0.42, 1.0))
-        transform(ear, rot=(-8, sx * 16, 0), loc=(sx * 0.095, -0.5, 0.76))
+        ear = _ear(sx)
 
         def ear_col(co, n, sx=sx):
-            return mixc(ORANGE, PINK, sstep(-0.2, -0.6, n.y) * sstep(0.08, 0.06, abs(co.x - sx * 0.1)))
-        a.add(ear, "fur", bone=bname, color_fn=ear_col)
-
-    # ---- 短腿:前腿直、後腿有大腿肉;腳掌白襪
-    def leg_col(co, n):
-        return mixc(ORANGE, WHITE, sstep(0.24, 0.16, co.z))
-    for sx, f_name, b_name in ((1, "leg_FL", "leg_BL"), (-1, "leg_FR", "leg_BR")):
-        a.add(limb((sx * 0.14, -0.3, 0.38), (sx * 0.14, -0.31, 0.07), 0.066, 0.056), "fur", bone=f_name, color_fn=leg_col)
-        a.add(soft(1.0, (sx * 0.14, -0.335, 0.045), (0.07, 0.09, 0.045), 3), "fur", bone=f_name, color_fn=leg_col)
-        a.add(soft(1.0, (sx * 0.15, 0.27, 0.36), (0.1, 0.13, 0.13), 3, seed=sx), "fur", bone=b_name, color_fn=leg_col)
-        a.add(limb((sx * 0.15, 0.29, 0.32), (sx * 0.15, 0.29, 0.07), 0.066, 0.056), "fur", bone=b_name, color_fn=leg_col)
-        a.add(soft(1.0, (sx * 0.15, 0.265, 0.045), (0.07, 0.09, 0.045), 3), "fur", bone=b_name, color_fn=leg_col)
-
-    # ---- 短尾巴(潘布魯克的小毛球)
-    a.add(soft(1.0, (0, 0.47, 0.5), (0.075, 0.075, 0.065), 3), "fur", bone="tail",
-          color_fn=lambda co, n: mixc(ORANGE, WHITE, sstep(0.48, 0.42, co.z)))
+            inner = sstep(-0.1, -0.5, n.y)                              # 朝前的那面
+            rim = sstep(0.035, 0.05, abs(co.x - sx * 0.075) + (co.z - 0.7) * 0.05)
+            col = mixc(RED, mixc(PINK, CREAM, 0.35), inner)
+            return mixc(col, CREAM, rim * inner * 0.8)
+        a.add(ear, "fur", bone=bname, color_fn=ear_col, fur=lambda co, n: 0.3 if n.y > 0 else 0.0)
     return finish_object(a.to_object())
 
 
@@ -159,6 +342,7 @@ def rig_corgi(ob):
         pose(arm, "tail", rot=(0, 0, 24 * math.sin(2 * two_pi * t)))
         twitch = max(0.0, math.sin(3 * two_pi * t)) ** 6
         pose(arm, "ear_L", rot=(-10 * twitch, 0, 0))
+        pose(arm, "jaw", rot=(5 + 5 * math.sin(6 * two_pi * t), 0, 0))  # 喘氣吐舌頭
 
     def walk(t):
         s = math.sin(two_pi * t)
@@ -168,6 +352,7 @@ def rig_corgi(ob):
         pose(arm, "body", rot=(0, 3 * s, 0))
         pose(arm, "head", rot=(3 * math.sin(2 * two_pi * t), 0, 0))
         pose(arm, "tail", rot=(0, 0, 16 * s))
+        pose(arm, "jaw", rot=(6 + 3 * math.sin(2 * two_pi * t), 0, 0))
 
     def run(t):
         # 跳躍步態:前腿一組、後腿一組交替
@@ -182,6 +367,7 @@ def rig_corgi(ob):
         for e in ("ear_L", "ear_R"):
             pose(arm, e, rot=(-25, 0, 0))
         pose(arm, "tail", rot=(0, 0, 10 * math.sin(2 * ph)))
+        pose(arm, "jaw", rot=(12 + 4 * math.sin(2 * ph), 0, 0))
 
     def dig(t):
         # 低頭翹屁股,前腳輪流往後扒土,尾巴猛搖
@@ -210,6 +396,7 @@ def rig_corgi(ob):
             pose(arm, b, rot=(10, 0, 0))
         for e in ("ear_L", "ear_R"):
             pose(arm, e, rot=(-14 + 6 * math.sin(4 * ph), 0, 0))
+        pose(arm, "jaw", rot=(10 + 6 * math.sin(8 * ph), 0, 0))  # 開心地喘氣
 
     add_action(arm, "Idle", 60, idle)
     add_action(arm, "Walk", 24, walk)

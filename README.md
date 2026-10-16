@@ -78,7 +78,9 @@ v0.3.5.html      Legacy v0.3.5 single-file version (kept for reference)
 
 ## Characters
 
-The corgi and the helmeted ducks are modeled in Blender too (`tools/blender/characters.py`): every body part is a separate piece bound rigidly to one bone, and the animations are keyframed in code and exported as glTF clips (30 fps), played in game with crossfades.
+The corgi and the helmeted ducks are modeled in Blender too (`tools/blender/characters.py`), and the animations are keyframed in code and exported as glTF clips (30 fps), played in game with crossfades.
+
+The corgi follows a real Pembroke Welsh corgi: a long, low body with a deep chest, very short thick legs, a fox-like head with tall cupped ears, an open smiling mouth with a pink tongue, and a red-sable coat with a white bib, muzzle blaze and socks. Its body is one smooth **metaball skin** (torso, neck, head, jaw, legs, tail blended together), and every vertex is weighted to the bones by the field strength of each body-part group, so the neck, shoulders and hips bend smoothly. Eyes, nose and ears are rigid parts placed by ray-casting onto the skin. In game the corgi gets **shell fur** (`game/src/render/Fur.js`): 12 skinned copies of the body pushed out along the normals, each keeping only thinning strand cross-sections, with per-vertex fur length baked from Blender (long on the chest ruff and tail, short on the face and paws, none on the eyes and nose). The ducks still use rigid parts.
 
 | Character | Clips |
 |-----------|-------|
@@ -105,7 +107,7 @@ python tools/blender/render_preview.py      # → docs/blender_preview.jpg (Cycl
 | `lib.py` | bmesh geometry helpers, shader-node builder, bake & export (per-group texture atlases) |
 | `materials.py` | procedural materials |
 | `assets.py` | one builder per asset + the asset table (texture size, AO distance, bake groups) |
-| `characters.py` | corgi & duck: modeling, bone layout and animation clips |
+| `characters.py` | corgi (metaball skin + smooth weights + fur length) & duck: modeling, bone layout and animation clips |
 | `trees.py` | trees & shrubs: branching skeleton + alpha-cutout leaf cards with procedurally painted leaf / needle textures |
 
 **Trees** are built like real ones instead of a blob canopy: a trunk with root flare splits into limbs and twigs (spruces get whorls of drooping branches), and the foliage is hundreds of leaf cards — quads textured with a leaf spray painted procedurally in numpy, cut out with alpha test in game (so their shadows are dappled too). The card normals point out from the crown center and a vertex color darkens the inside of the crown, so the canopy shades as one volume; while baking the bark, a shrunken copy of the leaves occludes the branches inside the crown. A small shader tweak raises the alpha with the mip level so distant trees don't go bald. Shrubs use the same recipe: woody stems from the ground, a crown of smaller blue-green leaf cards, and on the flowering ones five-petal white and pink blossoms on the outermost sprays.

@@ -219,15 +219,16 @@ def ground_preview(nb):
 
 @material("fur")
 def fur(nb):
-    # 毛色由頂點色決定(柯基的橘/白分界、鴨子的白羽);材質只加毛流的細節與凹凸
+    # 毛色由頂點色決定(柯基的紅/白分界、鴨子的白羽);材質只加細緻的毛流明暗與凹凸。
+    # 遊戲裡柯基另外疊一層層的「殼狀毛」(見 game/src/render/Fur.js),這裡只要細細的毛粒感。
     o = nb.coord("Object")
-    strands = nb.noise(nb.mapping(o, scale=(60, 60, 14)), 1.0, 5, 0.6, 0.6)
-    clumps = nb.noise(o, 9, 4, 0.55)
-    shade = nb.ramp(nb.math("ADD", nb.math("MULTIPLY", strands, 0.6), nb.math("MULTIPLY", clumps, 0.4)),
-                    [(0.25, (0.82, 0.82, 0.82)), (0.75, (1.0, 1.0, 1.0))])
+    grain = nb.noise(nb.mapping(o, scale=(45, 45, 35)), 1.0, 3, 0.55, 0.3)  # 太細會在烘焙圖上變成摩爾紋
+    clumps = nb.noise(o, 14, 4, 0.55)
+    shade = nb.ramp(nb.math("ADD", nb.math("MULTIPLY", grain, 0.5), nb.math("MULTIPLY", clumps, 0.5)),
+                    [(0.25, (0.86, 0.86, 0.86)), (0.75, (1.0, 1.0, 1.0))])
     base = nb.mul(nb.attr("col"), shade)
-    height = nb.math("ADD", strands, nb.math("MULTIPLY", clumps, 0.5))
-    return dict(color=base, height=height, bump=0.35, bump_dist=0.006, rough=0.9, ao=0.7)
+    height = nb.math("ADD", nb.math("MULTIPLY", grain, 0.6), nb.math("MULTIPLY", clumps, 0.4))
+    return dict(color=base, height=height, bump=0.15, bump_dist=0.004, rough=0.9, ao=0.7)
 
 
 @material("glossy_black")
@@ -235,6 +236,20 @@ def glossy_black(nb):
     o = nb.coord("Object")
     return dict(color=nb.ramp(nb.noise(o, 30, 2, 0.5), [(0.3, srgb("#0d0d0f")), (0.7, srgb("#1c1b1f"))]),
                 height=None, rough=0.25, ao=0.3)
+
+
+@material("eye")
+def eye(nb):
+    # 眼睛:顏色全由頂點色(瞳孔、虹膜、高光點),表面很亮
+    return dict(color=nb.attr("col"), height=None, rough=0.12, ao=0.25)
+
+
+@material("mouth")
+def mouth(nb):
+    o = nb.coord("Object")
+    n = nb.noise(o, 40, 3, 0.5)
+    base = nb.mul(nb.ramp(n, [(0.3, (0.85, 0.85, 0.85)), (0.7, (1.0, 1.0, 1.0))]), nb.attr("col"))
+    return dict(color=base, height=n, bump=0.15, rough=0.35, ao=0.5)
 
 
 @material("beak")

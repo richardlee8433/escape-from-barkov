@@ -114,6 +114,8 @@ export class Assets {
               // 烘焙貼圖已含 AO;只補上斜角取樣讓俯視角下的貼圖不糊
               for (const t of [o.material.map, o.material.normalMap]) if (t) t.anisotropy = 8;
               o.material.metalness = 0;
+              // 柯基的頂點色是「毛長」資料(給 Fur.js),不是顏色,不能乘到貼圖上
+              o.material.vertexColors = false;
             } else if (o.material) {
               o.material.roughness = 1;
               o.material.metalness = 0;

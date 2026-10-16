@@ -252,14 +252,18 @@ class Asset:
         self.bm.loops.layers.float_color.new("col")
         self.mats = []
         self.bone_ranges = []  # (起始頂點, 結束頂點, 骨頭名):角色的每個零件剛性綁在一根骨頭上
+        self.vweights = []     # (頂點, 骨頭名, 權重):整張皮膚平滑綁定(柯基的身體)
 
     def _mat_index(self, mat):
         if mat not in self.mats:
             self.mats.append(mat)
         return self.mats.index(mat)
 
-    def add(self, piece, mat, tint=(1, 1, 1), smooth=True, bone=None, color_fn=None):
-        """color_fn(co, normal) → (r, g, b):逐頂點上色(例如柯基的橘/白毛色分界)。"""
+    def add(self, piece, mat, tint=(1, 1, 1), smooth=True, bone=None, color_fn=None, weights_fn=None, fur=None):
+        """color_fn(co, normal) → (r, g, b):逐頂點上色(例如柯基的橘/白毛色分界)。
+        weights_fn(co) → {骨頭名: 權重}:逐頂點平滑綁定(取代 bone 的整塊剛性綁定)。
+        fur:毛長倍率(數字或 fn(co, normal) → 數字),寫進名為 shade 的頂點色給遊戲端的殼狀毛用;
+            一旦有零件用了它,沒指定的零件就是 0(眼睛、鼻子、舌頭不長毛)。"""
         idx = self._mat_index(mat)
         start = len(self.bm.verts)
         if not piece.loops.layers.uv.get("SrcUV"):  # 所有零件都要有同名 UV,合併時才不會掉資料
@@ -274,7 +278,23 @@ class Asset:
             elif tint is not None:  # None = 保留零件自帶的頂點色
                 for lp in f.loops:
                     lp[col] = (*tint, 1.0)
+        if fur is not None and not self.bm.loops.layers.float_color.get("shade"):
+            lay = self.bm.loops.layers.float_color.new("shade")
+            for f in self.bm.faces:  # 之前加進來的零件:沒有毛
+                for lp in f.loops:
+                    lp[lay] = (0.0, 0.0, 0.0, 1.0)
+        if self.bm.loops.layers.float_color.get("shade"):
+            sh = piece.loops.layers.float_color.get("shade") or piece.loops.layers.float_color.new("shade")
+            for f in piece.faces:
+                for lp in f.loops:
+                    k = 0.0 if fur is None else fur(lp.vert.co, lp.vert.normal) if callable(fur) else fur
+                    lp[sh] = (k, k, k, 1.0)
         n = len(piece.verts)
+        if weights_fn is not None:
+            piece.verts.index_update()
+            for v in piece.verts:
+                for bname, w in weights_fn(v.co).items():
+                    self.vweights.append((start + v.index, bname, w))
         me = bpy.data.meshes.new("_tmp")
         piece.to_mesh(me)
         piece.free()
@@ -294,6 +314,9 @@ class Asset:
         for a, b, bone in self.bone_ranges:
             vg = ob.vertex_groups.get(bone) or ob.vertex_groups.new(name=bone)
             vg.add(list(range(a, b)), 1.0, "REPLACE")
+        for vi, bone, w in self.vweights:
+            vg = ob.vertex_groups.get(bone) or ob.vertex_groups.new(name=bone)
+            vg.add([vi], w, "REPLACE")
         return ob
 
 
