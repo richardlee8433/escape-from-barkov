@@ -17,12 +17,12 @@ const OUT = path.join(ROOT, "dist");
 
 const REWRITES = [
   ["../proto/assets/models/", "./proto/assets/models/"],
-  ["../ass/audio/bgm.mp3", "./ass/audio/bgm.mp3"],
+  ["../ass/audio/griffith_hall.mp3", "./ass/audio/griffith_hall.mp3"],
 ];
 
 // 遊戲執行時會載入的資產(不含 proto 自己用的整套 Kenney 模型)
 const ASSETS = [
-  "ass/audio/bgm.mp3",
+  "ass/audio/griffith_hall.mp3",
 ];
 
 function copy(src, dst, transform) {

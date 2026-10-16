@@ -1,8 +1,9 @@
 import { bus, log } from "../core/EventBus.js";
 
 // 背景音樂:M 鍵切換,每次播放重建實例避免 Chrome 掛起後無法重播。
+// 曲目:Griffith Hall 166(原始錄音很小聲,已用 ffmpeg loudnorm 拉到 -20 LUFS、峰值 -1.5 dBTP)
 export class Bgm {
-  constructor(url = "../ass/audio/bgm.mp3") {
+  constructor(url = "../ass/audio/griffith_hall.mp3") {
     this.url = url;
     this.enabled = true;
     this.audio = null;
@@ -26,7 +27,7 @@ export class Bgm {
     if (!this.enabled) return;
     this.audio = new Audio(this.url);
     this.audio.loop = true;
-    this.audio.volume = 0.45;
+    this.audio.volume = 0.9;
     this.audio.play().catch(() => {});
   }
 
