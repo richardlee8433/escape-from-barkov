@@ -1,5 +1,6 @@
 import { ITEM_TYPES } from "../config/balance.js";
 import { bus } from "../core/EventBus.js";
+import { setIconText } from "./icons.js";
 
 // HUD 只聽事件,完全不碰遊戲物件。
 const ICONS = { [ITEM_TYPES.MEDKIT]: "🧰", [ITEM_TYPES.AMMO]: "🔫" };
@@ -48,7 +49,7 @@ export class HUD {
     bus.on("log", ({ msg, level }) => {
       const d = document.createElement("div");
       d.className = level || "info";
-      d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      setIconText(d, `[${new Date().toLocaleTimeString()}] ${msg}`);
       this.logEl.appendChild(d);
       this.logEl.scrollTop = this.logEl.scrollHeight;
     });

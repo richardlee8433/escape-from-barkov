@@ -24,7 +24,7 @@ export class Inventory {
         this.digSpots.dig(spot, this.player);
         return;
       }
-      log("Nothing here… press Q to sniff for buried treasure 👃", "info");
+      log("Nothing here… press Q to sniff for buried treasure :nose:", "info");
       return;
     }
     this.put(item.type);

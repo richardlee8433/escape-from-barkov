@@ -1,6 +1,7 @@
 import { BAL } from "../config/balance.js";
 import { RARITIES } from "../config/treasures.js";
 import { bus } from "../core/EventBus.js";
+import { setIconText } from "./icons.js";
 
 // 挖掘小遊戲的長條 + 挖到寶的卡片。
 // 長條的指針與綠區每幀從 DigSpots.active 讀;其餘(層數、判定、卡片)只聽事件。
@@ -20,8 +21,8 @@ export class DigUI {
     this.scentTimer = 0;
 
     // 嗅聞:先顯示「聞聞中」,聞完換成遠近的結果(顏色跟畫面上的氣味一樣)
-    bus.on("sniff:start", () => this.say("👃 Sniffing…", "#f0e3c8", 1.6));
-    bus.on("sniff:result", ({ scent }) => this.say(`👃 ${scent.label}`, scent.color, 2.8));
+    bus.on("sniff:start", () => this.say(":nose: Sniffing…", "#f0e3c8", 1.6));
+    bus.on("sniff:result", ({ scent }) => this.say(`:nose: ${scent.label}`, scent.color, 2.8));
 
     bus.on("dig:game", ({ need }) => {
       this.card.classList.add("hidden");
@@ -74,7 +75,7 @@ export class DigUI {
   }
 
   say(text, color, secs) {
-    this.scent.textContent = text;
+    setIconText(this.scent, text);
     this.scent.style.color = color;
     this._restart(this.scent, "");
     clearTimeout(this.scentTimer);

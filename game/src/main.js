@@ -115,5 +115,5 @@ screens.onStart(async (onProgress) => {
   bus.emit("game:started");
   log(`Game started ${VERSION}`, "ok");
   log("Head to the EXIT gate on the east side and press F to extract", "info");
-  log("Treasure is buried out of sight — press Q to sniff it out 👃", "info");
+  log("Treasure is buried out of sight — press Q to sniff it out :nose:", "info");
 });

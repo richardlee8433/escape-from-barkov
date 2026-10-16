@@ -4,6 +4,7 @@ import { DigGame } from "../src/systems/DigGame.js";
 import { Collection } from "../src/systems/Collection.js";
 import { DigSpots, SCENTS, scentAt, DIG_AHEAD } from "../src/systems/DigSpots.js";
 import { bus } from "../src/core/EventBus.js";
+import { setIconText } from "../src/ui/icons.js";
 import { suite, check, eq } from "./harness.js";
 
 // 把指針直接放到某個位置再按(測判定,不靠時間)
@@ -250,5 +251,21 @@ export function run() {
     ds.dig(s, p);
     ds.cancel("moved");
     return s.x === before[0] && s.z === before[1];
+  });
+
+  suite("介面圖示");
+
+  check(":nose: 換成黑色狗鼻子的 SVG,其餘文字照原樣", () => {
+    const el = document.createElement("div");
+    setIconText(el, ":nose: Warm — getting closer");
+    if (!el.querySelector("svg.icon-nose")) return "沒有狗鼻子圖示";
+    return eq(el.textContent.trim(), "Warm — getting closer");
+  });
+
+  check("文字裡的 HTML 不會被解析(不會被插入元素)", () => {
+    const el = document.createElement("div");
+    setIconText(el, "<img src=x onerror=alert(1)> :nose:");
+    if (el.querySelector("img")) return "插入了 img";
+    return el.querySelectorAll("svg").length === 1;
   });
 }
