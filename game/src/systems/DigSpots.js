@@ -34,7 +34,7 @@ export class DigSpots {
     const press = () => this.press();
     bus.on("input:pickup", press);
     bus.on("input:dig", press);
-    bus.on("input:fire", press);
+    bus.on("input:click", press);
     bus.on("enemy:peck", () => this.cancel("peck"));
   }
 

@@ -236,4 +236,48 @@ export function run() {
     brain.update(1 / 60, { x: 0, y: 0, z: 60 }, 1);
     return eq(brain.state, "patrol");
   });
+
+  suite("EnemyBrain 啄到之後走開");
+
+  check("啄中之後鴨子心滿意足地走開,calmTime 內不會再啄", () => {
+    const c = new Collision();
+    const e = fakeEnemy(0, 0);
+    const target = close();
+    faceToward(e, target.x, target.z);
+    const brain = makeBrain(e, c);
+    brain.attackCd = 0;
+    if (runUntilAttack(brain, target) === null) return "從未出手";
+    const steps = Math.floor((E.calmTime * 0.9) / (1 / 60));
+    for (let i = 0; i < steps; i++) {
+      faceToward(e, target.x, target.z);
+      if (brain.update(1 / 60, target, 1).attack) return `走開期間又啄了(第 ${i} 步)`;
+    }
+    return eq(brain.state, "patrol");
+  });
+
+  check("走開的方向是背對柯基", () => {
+    const c = new Collision();
+    const e = fakeEnemy(0, 0);
+    const target = close(); // 柯基在 +z
+    faceToward(e, target.x, target.z);
+    const brain = makeBrain(e, c);
+    brain.attackCd = 0;
+    runUntilAttack(brain, target);
+    const intent = brain.update(1 / 60, target, 1);
+    return intent.move && intent.move.z < 0 ? true : `move=${intent.move && intent.move.z}`;
+  });
+
+  check("calmTime 過了之後又會追柯基", () => {
+    const c = new Collision();
+    const e = fakeEnemy(0, 0);
+    const target = close();
+    faceToward(e, target.x, target.z);
+    const brain = makeBrain(e, c);
+    brain.attackCd = 0;
+    runUntilAttack(brain, target);
+    brain.calm = 0;
+    faceToward(e, target.x, target.z);
+    brain.update(1 / 60, target, 1);
+    return brain.state === "chase" || brain.state === "windup" ? true : `state=${brain.state}`;
+  });
 }

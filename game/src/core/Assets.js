@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 
-const MODEL_BASE = "../proto/assets/models/";
 const BLENDER_BASE = "./assets/models/";
 
 // Blender 程序化資產(tools/blender/ 產生,烘焙了顏色 × AO + 法線貼圖)
@@ -14,16 +13,9 @@ const BLENDER = [
   "fence", "gate", "bridge",
   "barrel", "crate", "chest",
   "reeds", "waterweed", "lilypad", "lily", "dirt_pile",
-  // 角色:帶骨架與動畫(柯基 Idle/Walk/Run/Dig/Proud,鴨子 Idle/Walk/Run/Peck)
+  // 角色:帶骨架與動畫(柯基 Idle/Walk/Run/Dig/Proud/Sniff,鴨子 Idle/Walk/Run/Peck)
   "corgi", "duck",
 ];
-
-// 拾取物與子彈（Kenney CC0,各包貼圖同名故分資料夾）
-const SPECIAL = {
-  pickup_heart: MODEL_BASE + "pickups-platformer/heart.glb",
-  pickup_ammo: MODEL_BASE + "pickups-blaster/clip-large.glb",
-  bullet: MODEL_BASE + "pickups-blaster/bullet-foam.glb",
-};
 
 // 樹葉面片(trees.py):透明葉叢貼圖用 alpha test 切出葉形(陰影也跟著是一片片的葉影),
 // 雙面顯示。法線在 Blender 裡已改成「從樹冠中心往外」,背面不要再翻轉法線,
@@ -68,10 +60,7 @@ export class Assets {
   }
 
   async loadAll(onProgress) {
-    const entries = [
-      ...BLENDER.map((n) => [n, BLENDER_BASE + n + ".glb"]),
-      ...Object.entries(SPECIAL),
-    ];
+    const entries = BLENDER.map((n) => [n, BLENDER_BASE + n + ".glb"]);
     let done = 0;
     await Promise.all(
       entries.map(([name, url]) =>

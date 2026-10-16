@@ -1,11 +1,9 @@
-import { BAL, ITEM_TYPES } from "../config/balance.js";
-import { bus, log } from "../core/EventBus.js";
+import { BAL } from "../config/balance.js";
+import { log } from "../core/EventBus.js";
 import { Enemy } from "../entities/Enemy.js";
-import { ItemDrop } from "../entities/ItemDrop.js";
 
-// 敵人與道具的生成規則。敵人陣列、道具陣列都由這裡擁有。
+// 鴨子的生成與整體更新。鴨子陣列由這裡擁有。
 const E = BAL.enemy;
-const HALF = BAL.world.size / 2;
 
 export class Spawner {
   constructor(scene, assets, collision) {
@@ -13,22 +11,6 @@ export class Spawner {
     this.assets = assets;
     this.collision = collision;
     this.enemies = [];
-    this.items = [];
-
-    // 敵人死亡 → 機率掉落
-    bus.on("enemy:died", ({ x, z }) => {
-      const type = this.pickDropType();
-      if (!type) return;
-      this.dropItem(type, x, z);
-      log(`Drop: ${type}`, "info");
-    });
-  }
-
-  pickDropType() {
-    const r = Math.random();
-    if (r < BAL.loot.ammo) return ITEM_TYPES.AMMO;
-    if (r < BAL.loot.medkit) return ITEM_TYPES.MEDKIT;
-    return null;
   }
 
   spawnEnemies(n, playerPos) {
@@ -47,29 +29,8 @@ export class Spawner {
     log(`Enemies spawned x${n} (spread across the map)`, "warn");
   }
 
-  scatterItems(playerPos) {
-    const s = BAL.items.scatter;
-    const plan = [
-      [ITEM_TYPES.MEDKIT, s.medkit],
-      [ITEM_TYPES.AMMO, s.ammo],
-    ];
-    for (const [type, count] of plan) {
-      for (let i = 0; i < count; i++) {
-        let x = 0, z = 0;
-        for (let tries = 0; tries < 40; tries++) {
-          x = (Math.random() - 0.5) * (BAL.world.size - 30);
-          z = (Math.random() - 0.5) * (BAL.world.size - 30);
-          if (Math.hypot(x - playerPos.x, z - playerPos.z) < 16) continue; // 出生點附近不放
-          if (this.collision.isFree(x, z, 0.6)) break;
-        }
-        this.items.push(new ItemDrop(this.scene, this.assets, type, x, z));
-      }
-    }
-  }
-
   // 敵人整體更新（AI + 彼此/玩家推開)
   updateEnemies(dt, player, combat) {
-    if (!player.alive) return;
     const diff = combat.difficulty();
     for (const en of this.enemies) {
       en.update(dt, player, diff, this.collision, combat);
@@ -89,30 +50,5 @@ export class Spawner {
       }
       en.pos.y = BAL.world.gameplayY;
     });
-  }
-
-  // 在 (x, z) 掉出一個道具(敵人死亡、挖寶)
-  dropItem(type, x, z) {
-    this.items.push(new ItemDrop(this.scene, this.assets, type, x, z));
-  }
-
-  nearestItem(pos, range) {
-    let best = null, bestD2 = range * range;
-    for (const it of this.items) {
-      const dx = pos.x - it.pos.x;
-      const dz = pos.z - it.pos.z;
-      const d2 = dx * dx + dz * dz;
-      if (d2 < bestD2) { bestD2 = d2; best = it; }
-    }
-    return best;
-  }
-
-  removeItem(item) {
-    item.dispose(this.scene);
-    this.items = this.items.filter((it) => it !== item);
-  }
-
-  updateItems(t) {
-    for (const it of this.items) it.bob(t);
   }
 }
