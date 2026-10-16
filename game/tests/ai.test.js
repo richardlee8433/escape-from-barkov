@@ -280,4 +280,51 @@ export function run() {
     brain.update(1 / 60, target, 1);
     return brain.state === "chase" || brain.state === "windup" ? true : `state=${brain.state}`;
   });
+
+  suite("柯基吠叫:鴨子被嚇跑");
+
+  check("被吠了往反方向逃,不追也不啄", () => {
+    const c = new Collision();
+    const e = fakeEnemy(0, 0);
+    const target = close(); // 柯基在 +z
+    faceToward(e, target.x, target.z);
+    const brain = makeBrain(e, c);
+    brain.attackCd = 0;
+    brain.scare(target.x, target.z);
+    const it = brain.update(1 / 60, target, 1);
+    if (it.attack) return "被吠了還啄";
+    if (!it.move || it.move.z >= 0) return `沒有往反方向逃 ${JSON.stringify(it.move)}`;
+    return it.move.length() > E.baseSpeed ? true : "逃得不夠快";
+  });
+
+  check("前搖中被吠:前搖中斷,這一啄不會發生", () => {
+    const c = new Collision();
+    const e = fakeEnemy(0, 0);
+    const target = close();
+    faceToward(e, target.x, target.z);
+    const brain = makeBrain(e, c);
+    brain.attackCd = 0;
+    for (let i = 0; i < 60 && brain.state !== "windup"; i++) brain.update(1 / 60, target, 1);
+    if (brain.state !== "windup") return "沒進入前搖";
+    brain.scare(target.x, target.z);
+    const steps = Math.floor(((E.fleeTime + E.scaredCalm) * 0.95) / (1 / 60));
+    for (let i = 0; i < steps; i++) {
+      faceToward(e, target.x, target.z);
+      if (brain.update(1 / 60, target, 1).attack) return `被吠之後還是啄了(第 ${i} 步)`;
+    }
+    return true;
+  });
+
+  check("逃完、驚魂未定的時間過了,又會追柯基", () => {
+    const c = new Collision();
+    const e = fakeEnemy(0, 0);
+    const target = close();
+    const brain = makeBrain(e, c);
+    brain.scare(target.x, target.z);
+    const steps = Math.ceil((E.fleeTime + E.scaredCalm) / (1 / 60)) + 2;
+    for (let i = 0; i < steps; i++) brain.update(1 / 60, target, 1);
+    faceToward(e, target.x, target.z);
+    brain.update(1 / 60, target, 1);
+    return brain.state === "chase" || brain.state === "windup" ? true : `state=${brain.state}`;
+  });
 }

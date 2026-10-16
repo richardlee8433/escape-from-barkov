@@ -24,6 +24,30 @@
       background: #5b4630; color: #ffe9bd; cursor: pointer;
     }
     #title-screen button:hover { background: #6d5539; }
+    /* ---- 媽媽的信(開始遊戲時,順便當載入畫面) ---- */
+    #letter {
+      position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%, #3a2f1e 0%, #15100a 75%); padding: 16px; box-sizing: border-box;
+    }
+    #letter .paper {
+      position: relative; width: min(560px, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box;
+      padding: 30px 38px 24px; border-radius: 6px; color: #3b2a17;
+      background: linear-gradient(175deg, #f7ecd2 0%, #efdfbd 60%, #e6d0a6 100%);
+      box-shadow: 0 18px 50px rgba(0,0,0,.55), inset 0 0 60px rgba(150, 110, 60, .25);
+      font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", "Noto Sans TC", cursive;
+      font-size: 16px; line-height: 1.75; animation: letterin .6s ease-out; transform: rotate(-.6deg);
+    }
+    #letter .paper p { margin: 0 0 12px; }
+    #letter .paper .greet { font-size: 19px; margin-bottom: 14px; }
+    #letter .paper .sign { text-align: right; margin-top: 4px; font-size: 18px; }
+    #letter .paper .ps { font-size: 14px; opacity: .8; margin-top: 10px; }
+    #letter .paper .stamp { position: absolute; top: 18px; right: 22px; font-size: 30px; opacity: .8; transform: rotate(10deg); }
+    #letter .go { display: block; margin: 18px auto 0; font: 600 16px system-ui, sans-serif; padding: 10px 30px;
+      border-radius: 10px; border: 1px solid #8a6f4a; background: #5b4630; color: #ffe9bd; cursor: pointer; }
+    #letter .go:disabled { opacity: .6; cursor: default; }
+    #letter .go:not(:disabled):hover { background: #6d5539; }
+    @keyframes letterin { from { opacity: 0; transform: translateY(18px) rotate(-.6deg); } to { opacity: 1; transform: rotate(-.6deg); } }
+    @media (max-width: 520px) { #letter .paper { padding: 22px 20px 18px; font-size: 15px; } }
     #howto {
       position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,.55);
@@ -114,7 +138,11 @@
     @keyframes revealin { from { opacity: 0; transform: translate(-50%, 14px) scale(.9); } to { opacity: 1; transform: translateX(-50%); } }
 
     /* 寶物圖鑑、背包:共用的面板 */
-    #dex-btn, #bag-btn { cursor: pointer; }
+    #dex-btn, #bag-btn, #bark-btn { cursor: pointer; }
+    #bark-btn { transition: opacity .2s; }
+    #bark-btn.cooling { opacity: .45; }
+    #bark-btn.nope { animation: barknope .3s; }
+    @keyframes barknope { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
     .panel {
       position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,.55);
@@ -213,11 +241,23 @@
   <div id="title-screen">
     <h1>🐕 Dig, Corgi, Dig!</h1>
     <div class="sub">a treasure hunt in the village of Barkov</div>
-    <div class="ver">v0.11.0 — dig up treasure, fix up your cottage</div>
+    <div class="ver">v0.12.0 — a letter from Mom, and a good loud bark</div>
     <button id="btn-start">Start Game</button>
     <button id="btn-howto">How to Play</button>
   </div>
 
+  <div id="letter" class="hidden">
+    <div class="paper">
+      <div class="stamp">🐾</div>
+      <p class="greet">My dear pup,</p>
+      <p>If you are reading this, the old cottage in Barkov is yours now. It has stood empty for a long time — the roof lets the rain in, the floorboards have given up, and I'm afraid the ducks have made themselves quite at home in the village.</p>
+      <p>When your father and I were young, we buried all sorts of things around Barkov: planks and nails for a rainy day, straw for the roof, and a few small treasures that meant the world to us. Most of them are still out there, waiting.</p>
+      <p>Use that wonderful nose of yours. Sniff them out, dig them up, and make the cottage a home again. And if the ducks give you any trouble, a good loud bark works wonders.</p>
+      <p class="sign">All my love,<br>Mom</p>
+      <p class="ps">P.S. Look out for half a photo. You'll know it when you find it.</p>
+      <button class="go" disabled>Loading…</button>
+    </div>
+  </div>
   <div id="howto" class="hidden">
     <div class="card">
       <h3>How to Play</h3>
@@ -226,7 +266,8 @@
       <div><kbd>E</kbd> Dig where your nose says "Right here!" · pick up things you dropped</div>
       <div>Digging: press <kbd>E</kbd> or <kbd>Space</kbd> when the needle is in the green (gold = perfect)</div>
       <div><kbd>B</kbd> Backpack · <kbd>Tab</kbd> Treasure Book — rarer treasures are buried deeper</div>
-      <div>Ducks are mischievous: a peck knocks you back and makes you drop something</div>
+      <div>Ducks are mischievous: a peck knocks you back and makes you drop something — walk over it (or press <kbd>E</kbd>) to pick it back up</div>
+      <div><kbd>R</kbd> Bark — nearby ducks flap away in a panic (then it needs a few seconds to recharge)</div>
       <div><kbd>F</kbd> Go home at the HOME gate · <kbd>M</kbd> Toggle music</div>
       <div>At home: <kbd>E</kbd> repair what your nose points at with things you dug up, or decorate shelves and tables with your treasures</div>
       <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;">Close</button>
@@ -236,6 +277,7 @@
   <div id="hud" class="hidden">
     <span id="bag-btn" title="Backpack (B)">🎒 <b id="bag-count">0</b></span>
     <span id="dex-btn" title="Treasure Book (Tab)">📖 <b id="dex-count">0</b></span>
+    <span id="bark-btn" title="Bark (R) — scares nearby ducks away">🗯️ <b id="bark-state">R</b></span>
     <span id="home-stat" title="Cottage repairs">🏡 <b id="home-count">0/8</b></span>
   </div>
   <div id="tip" class="hidden"></div>

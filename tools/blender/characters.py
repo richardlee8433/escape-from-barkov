@@ -411,12 +411,29 @@ def rig_corgi(ob):
             pose(arm, b, rot=(-8, 0, 0))
         pose(arm, "tail", rot=(0, 0, 18 * math.sin(2 * ph)))
 
+    def bark(t):
+        # 汪!:前腳撐地、身體往後一縮蓄力,接著抬頭往前一衝、嘴巴張到最大,耳朵往後貼、尾巴翹高
+        k = math.sin(math.pi * min(1.0, t / 0.75)) if t < 0.75 else 0.0     # 0 → 1 → 0
+        snap = max(0.0, math.sin(math.pi * (t - 0.18) / 0.5)) if 0.18 < t < 0.68 else 0.0
+        pose(arm, "root", loc=(0, -0.015 * k + 0.02 * snap, 0.01 * snap))
+        pose(arm, "body", rot=(-8 * k, 0, 0))
+        for b in ("leg_FL", "leg_FR"):
+            pose(arm, b, rot=(-18 * k, 0, 0))
+        for b in ("leg_BL", "leg_BR"):
+            pose(arm, b, rot=(10 * k, 0, 0))
+        pose(arm, "head", rot=(-22 * k + 10 * snap, 0, 0))
+        pose(arm, "jaw", rot=(4 + 34 * snap, 0, 0))
+        for e in ("ear_L", "ear_R"):
+            pose(arm, e, rot=(-30 * k, 0, 0))
+        pose(arm, "tail", rot=(0, 0, 14 * math.sin(4 * two_pi * t) * k))
+
     add_action(arm, "Idle", 60, idle)
     add_action(arm, "Walk", 24, walk)
     add_action(arm, "Run", 14, run)
     add_action(arm, "Dig", 12, dig)
     add_action(arm, "Proud", 48, proud)
     add_action(arm, "Sniff", 30, sniff)
+    add_action(arm, "Bark", 16, bark)
     return arm
 
 

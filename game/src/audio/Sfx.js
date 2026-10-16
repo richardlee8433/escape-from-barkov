@@ -19,6 +19,30 @@ export class Sfx {
       } catch (e) { /* 音效失敗不影響遊戲 */ }
     };
 
+    // 「汪!」:鋸齒波 + 方波往下滑,過低通濾波,起音很快
+    const woof = (delay = 0) => {
+      try {
+        const t0 = this.ctx.currentTime + delay;
+        const g = this.ctx.createGain();
+        const f = this.ctx.createBiquadFilter();
+        f.type = "lowpass";
+        f.frequency.value = 1400;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2);
+        f.connect(g).connect(this.ctx.destination);
+        for (const [type, mul] of [["sawtooth", 1], ["square", 0.5]]) {
+          const o = this.ctx.createOscillator();
+          o.type = type;
+          o.frequency.setValueAtTime(520 * mul, t0);
+          o.frequency.exponentialRampToValueAtTime(190 * mul, t0 + 0.16);
+          o.connect(f);
+          o.start(t0);
+          o.stop(t0 + 0.22);
+        }
+      } catch (e) { /* 音效失敗不影響遊戲 */ }
+    };
+
     bus.on("game:started", () => {
       this.ctx.resume().catch(() => {});
       beep(440, 0.12);
@@ -30,6 +54,12 @@ export class Sfx {
     bus.on("enemy:hurt", () => beep(260, 0.08, "triangle")); // 「嘎…」
     bus.on("enemy:died", () => { beep(420, 0.08); beep(260, 0.16); }); // 「哇→啊」
     bus.on("enemy:peck", () => beep(1500, 0.04, "square", 0.05)); // 「啄!」
+    bus.on("bark", ({ scared }) => {
+      woof();
+      // 被嚇到的鴨子:一串慌張的嘎嘎
+      if (scared.length) [0, 90, 180].forEach((d, i) => setTimeout(() => beep(1250 - i * 120, 0.05, "square", 0.04), 250 + d));
+    });
+    bus.on("bark:cooldown", () => beep(220, 0.06, "sine", 0.04));
     bus.on("dig:start", () => beep(180, 0.08, "sawtooth", 0.04));
     // 嗅聞:三下短促的「嗅嗅嗅」;結果越近音越高
     bus.on("sniff:start", () => [0, 140, 280].forEach((d) => setTimeout(() => beep(1900, 0.025, "sawtooth", 0.02), d)));

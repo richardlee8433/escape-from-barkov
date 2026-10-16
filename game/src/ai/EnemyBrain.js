@@ -11,6 +11,7 @@ import { bus } from "../core/EventBus.js";
 // 啄擊不是一貼身就打：要先面向對準，再經過 windup 前搖(地上有預告圈),
 // 前搖結束當下重新驗證視線與距離——柯基在前搖中跑開或躲到掩體後,這一啄就落空。
 // 啄到之後鴨子心滿意足地走開一陣子(calm),不會一直追著同一隻柯基啄。
+// 被柯基吠了(scare):前搖立刻中斷,拍著翅膀往反方向逃(flee),逃完還驚魂未定一陣子(calm)。
 const E = BAL.enemy;
 
 export class EnemyBrain {
@@ -23,6 +24,8 @@ export class EnemyBrain {
     this.attackCd = Math.random() * E.attackCd; // 錯開初始冷卻,避免一群鴨子同時啄
     this.windup = 0;
     this.calm = 0; // 啄到之後的「心滿意足」秒數:這段時間不理柯基
+    this.flee = 0; // 被吠之後逃跑的剩餘秒數
+    this.fleeDir = 0;
     this.lastKnown = new THREE.Vector3();
   }
 
@@ -47,6 +50,18 @@ export class EnemyBrain {
     return Math.abs(diff) < E.aimTolerance;
   }
 
+  // 被柯基吠了:從 (fromX, fromZ) 往反方向逃。前搖中也一樣中斷
+  scare(fromX, fromZ) {
+    if (this.state === "windup") bus.emit("enemy:windupCancel", { enemy: this.enemy });
+    this.state = "patrol";
+    this.windup = 0;
+    const p = this.enemy.pos;
+    this.fleeDir = Math.atan2(p.z - fromZ, p.x - fromX);
+    this.flee = E.fleeTime;
+    this.calm = 0;
+    bus.emit("enemy:scared", { enemy: this.enemy });
+  }
+
   // 回傳這一刻的行動意圖：{ move: Vector3|null, faceYaw: number|null, attack: bool }
   update(dt, playerPos, difficulty) {
     this.attackCd -= dt;
@@ -57,6 +72,20 @@ export class EnemyBrain {
     const seen = this.canSee(playerPos);
     const faceYaw = Math.atan2(dx, dz);
     const speed = E.baseSpeed * (0.8 + 0.4 * difficulty);
+
+    // 被吠了:頭也不回地逃,逃完接著驚魂未定(calm)
+    if (this.flee > 0) {
+      this.flee -= dt;
+      this.state = "patrol";
+      this.fleeDir += (Math.random() - 0.5) * dt * 2;
+      if (this.flee <= 0) {
+        this.calm = E.scaredCalm;
+        this.patrolDir = this.fleeDir;
+      }
+      const move = new THREE.Vector3(Math.cos(this.fleeDir), 0, Math.sin(this.fleeDir))
+        .multiplyScalar(E.baseSpeed * E.fleeSpeedMul);
+      return { move, faceYaw: Math.atan2(move.x, move.z), attack: false };
+    }
 
     // 剛啄過:慢慢晃開,不追也不啄
     if (this.calm > 0) {

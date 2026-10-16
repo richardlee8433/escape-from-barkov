@@ -27,6 +27,8 @@ import { HomeState } from "./systems/HomeState.js";
 import { Home } from "./systems/Home.js";
 import { HomeScene } from "./world/HomeScene.js";
 import { DisplayPicker } from "./ui/DisplayPicker.js";
+import { Bark } from "./systems/Bark.js";
+import { BarkFx } from "./render/BarkFx.js";
 import { HOME_SCALE, SPAWN, STATIONS } from "./config/home.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
@@ -53,6 +55,7 @@ screens.onStart(async (onProgress) => {
   const backpack = new Backpack();
   const digSpots = new DigSpots(world.canDig, collision, player.pos, collection);
   const inventory = new Inventory(player, backpack, digSpots);
+  const barker = new Bark(player, () => (mode === "world" ? spawner.enemies : []));
   const exitSystem = new ExitSystem(world.exitPos, player, game.input);
 
   // 回饋層(純事件訂閱,不改遊戲狀態)
@@ -63,6 +66,7 @@ screens.onStart(async (onProgress) => {
   const book = new CollectionUI(collection);
   const bag = new BackpackUI(backpack);
   const groundItems = new GroundItems(game.scene);
+  const barkFx = new BarkFx(() => player.root.parent, barker);
   hud.camYaw = rig.yaw;
 
   // 柯基的家:另一個場景,從地圖的大門回來
@@ -76,16 +80,26 @@ screens.onStart(async (onProgress) => {
   // 事件接線
   // 挖到的寶物放進背包;被鴨子啄到就掉一件在旁邊的地上(背包空的就只是被推開)
   bus.on("dig:found", ({ treasure, qty = 1 }) => backpack.add(treasure.id, qty));
-  bus.on("player:pecked", ({ x, z, fromX, fromZ }) => {
-    const a = Math.random() * Math.PI * 2;
-    const d = 1.4 + Math.random() * 0.8;
-    let dx = Math.cos(a) * d, dz = Math.sin(a) * d;
-    // 掉在柯基身邊、不卡進石頭(找不到空地就掉在腳邊)
-    if (!collision.isFree(x + dx, z + dz, 0.4)) { dx = -fromX * 1.2; dz = -fromZ * 1.2; }
-    backpack.dropRandom(x + dx, z + dz, x, z);
+  // 掉落點一定要走得到:不卡進石頭、柵欄、水裡,也不出地圖邊界(找不到就掉在腳邊)
+  const DROP_LIMIT = BAL.world.size / 2 - BAL.world.edgeMargin - 1;
+  bus.on("player:pecked", ({ x, z }) => {
+    let at = [x, z];
+    for (let k = 0; k < 12; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const d = 1.4 + Math.random() * 0.8;
+      const px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+      if (Math.abs(px) > DROP_LIMIT || Math.abs(pz) > DROP_LIMIT) continue;
+      if (!collision.isFree(px, pz, 0.7)) continue;
+      at = [px, pz];
+      break;
+    }
+    backpack.dropRandom(at[0], at[1], x, z);
   });
   bus.on("input:sniff", () => {
     if (!game.paused && mode === "world") digSpots.sniff(player);
+  });
+  bus.on("input:bark", () => {
+    if (!game.paused) barker.bark();
   });
   bus.on("input:zoom", (steps) => {
     rig.zoomBy(steps);
@@ -169,6 +183,7 @@ screens.onStart(async (onProgress) => {
 
   // 邏輯系統(固定 60Hz)
   game.addSystem({ update: (dt) => player.update(dt, game.input, rig, mode === "home" ? homeView.collision : collision) });
+  game.addSystem({ update: (dt) => barker.update(dt) });
   game.addSystem({
     update: (dt) => {
       if (mode === "home") {
@@ -179,6 +194,7 @@ screens.onStart(async (onProgress) => {
       combat.update(dt);
       exitSystem.update();
       digSpots.update(player, dt);
+      inventory.update(dt);
     },
   });
 
@@ -186,6 +202,7 @@ screens.onStart(async (onProgress) => {
   game.addSystem({
     frame: (dt, t) => {
       digUI.frame();
+      barkFx.frame(dt);
       if (mode === "home") {
         rig.follow(homeFocus(), dt);
         homeView.frame(dt, t);
@@ -206,14 +223,20 @@ screens.onStart(async (onProgress) => {
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI, backpack, bag, groundItems,
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI, backpack, bag, groundItems, barker,
     homeState, homeView, home, picker, switchTo, get mode() { return mode; } }; // Console 檢查用
 
+  // 先開始畫(信後面就是遊戲畫面),讀完媽媽的信、按下「Let's go」才開始動
+  game.paused = true;
   game.start();
-  hud.show();
-  bus.emit("game:started");
-  log(`Game started ${VERSION}`, "ok");
-  log("Your cottage is through the HOME gate on the east side — press F there to go home 🏡", "info");
-  log("Treasure is buried out of sight — press Q to sniff it out :nose:", "info");
-  log("Everything you dig up goes into your backpack 🎒 (press B)", "info");
+  bus.on("story:closed", () => {
+    game.paused = false;
+    hud.show();
+    bus.emit("game:started");
+    log(`Game started ${VERSION}`, "ok");
+    log("Your cottage is through the HOME gate on the east side — press F there to go home 🏡", "info");
+    log("Treasure is buried out of sight — press Q to sniff it out :nose:", "info");
+    log("Everything you dig up goes into your backpack 🎒 (press B)", "info");
+    log("Ducks bothering you? Press R to bark 🗯️", "info");
+  });
 });

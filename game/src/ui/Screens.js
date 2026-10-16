@@ -15,19 +15,33 @@ export class Screens {
     bus.on("victory", () => this.showEnd());
   }
 
+  // 按下開始:先攤開媽媽的信(順便當載入畫面),載完之後按「Let's go」才進遊戲。
+  // fn 負責載入與建好遊戲;信收起來時發出 story:closed,遊戲才開始動。
   onStart(fn) {
+    const letter = document.getElementById("letter");
+    const go = letter.querySelector(".go");
     this.startBtn.onclick = async () => {
-      // 按下就立刻有回饋:第一個模型載完之前,按鈕文字也要變
       this.startBtn.disabled = true;
       this.startBtn.textContent = "Loading…";
+      letter.classList.remove("hidden");
+      go.disabled = true;
+      go.textContent = "Loading…";
       try {
         await fn((done, total) => {
-          this.startBtn.textContent = `Loading… ${done}/${total}`;
+          go.textContent = `Loading… ${done}/${total}`;
         });
         this.title.classList.add("hidden");
+        go.disabled = false;
+        go.textContent = "Let's go! 🐾";
+        go.focus();
+        go.onclick = () => {
+          letter.classList.add("hidden");
+          bus.emit("story:closed");
+        };
       } catch (err) {
         // 載入失敗要說出來,不能讓按鈕看起來「沒反應」
         console.error(err);
+        letter.classList.add("hidden");
         this.startBtn.textContent = "Load failed — click to retry";
         this.startBtn.title = String(err?.message || err);
         this.startBtn.disabled = false;

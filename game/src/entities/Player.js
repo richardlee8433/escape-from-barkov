@@ -25,6 +25,7 @@ export class Player {
     this.dig = null;  // 挖地中:{ yaw, onCancel };何時挖完由 DigSpots 的小遊戲決定
     this.proud = 0;   // 挖到寶之後看鏡頭撒嬌的剩餘秒數
     this.sniff = null; // 嗅聞中:{ t, onDone }
+    this.bark = 0;     // 吠叫動作的剩餘秒數(站定)
   }
 
   get pos() {
@@ -37,9 +38,9 @@ export class Player {
     return { ...BAL.player.body, fx: Math.sin(yaw), fz: Math.cos(yaw) };
   }
 
-  // 挖地或撒嬌中:不能開槍
+  // 挖地、嗅聞、撒嬌或吠叫中:不能做別的動作
   get busy() {
-    return !!this.dig || !!this.sniff || this.proud > 0;
+    return !!this.dig || !!this.sniff || this.proud > 0 || this.bark > 0;
   }
 
   update(dt, input, rig, collision) {
@@ -59,6 +60,12 @@ export class Player {
         this.anim.update(dt);
         return;
       }
+    }
+    // 吠叫:很短,站定吠完才能走(不會被方向鍵中斷)
+    if (this.bark > 0) {
+      this.bark -= dt;
+      this.anim.update(dt);
+      return;
     }
     // 嗅聞:原地低頭左右聞;聞完才回報結果。一移動就中斷
     if (this.sniff) {
@@ -134,6 +141,16 @@ export class Player {
     this.proud = 0;
     this.sniff = { t: BAL.player.sniffTime, onDone };
     bus.emit("sniff:start", { x: this.pos.x, z: this.pos.z });
+    return true;
+  }
+
+  // 吠一聲(挖地、嗅聞中不行;撒嬌可以被打斷)
+  startBark() {
+    if (!this.alive || this.dig || this.sniff || this.bark > 0) return false;
+    this.proud = 0;
+    this.bark = BAL.player.barkTime;
+    this.anim.playOnce("Bark", BAL.player.barkTime);
+    this.anim.play("Idle");
     return true;
   }
 

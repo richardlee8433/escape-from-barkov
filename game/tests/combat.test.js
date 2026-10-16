@@ -4,6 +4,8 @@ import { Collision } from "../src/systems/Collision.js";
 import { Combat } from "../src/systems/Combat.js";
 import { Backpack, BAG_SLOTS } from "../src/systems/Backpack.js";
 import { TREASURES, byId } from "../src/config/treasures.js";
+import { Bark } from "../src/systems/Bark.js";
+import { Inventory } from "../src/systems/Inventory.js";
 import { suite, check, eq } from "./harness.js";
 
 // 柯基沒有血量也沒有武器:鴨子啄到只會推開一步、讓背包掉出一件東西。
@@ -149,5 +151,67 @@ export function run() {
     if (near !== item) return "撿不到旁邊的東西";
     b.pickup(near);
     return b.count("shell") === 1 && b.ground.length === 0 && byId.shell.tier === 1;
+  });
+
+  suite("吠叫與撿東西");
+
+  // Bark / Inventory 用得到的柯基欄位
+  const corgi = (x = 0, z = 0, yaw = 0) => ({
+    alive: true, dig: null, sniff: null, barking: 0, pos: new THREE.Vector3(x, 0, z), root: { rotation: { y: yaw } },
+    startBark() { if (this.barking > 0) return false; this.barking = 1; return true; },
+  });
+  const duck = (x, z) => {
+    const e = { pos: new THREE.Vector3(x, 0, z), scaredFrom: null };
+    e.brain = { scare: (fx, fz) => { e.scaredFrom = [fx, fz]; } };
+    return e;
+  };
+
+  check("吠一聲:範圍內的鴨子被嚇到,範圍外的不受影響", () => {
+    const p = corgi();
+    const near = duck(BAL.bark.radius - 1, 0), far = duck(BAL.bark.radius + 2, 0);
+    const [got, off] = capture(["bark"]);
+    const ok = new Bark(p, () => [near, far]).bark();
+    off();
+    if (!ok) return "沒吠出來";
+    if (!near.scaredFrom || far.scaredFrom) return "嚇到的鴨子不對";
+    return eq(got[0]?.p.scared.length, 1);
+  });
+
+  check("冷卻中不能再吠;冷卻結束就可以", () => {
+    const p = corgi();
+    const b = new Bark(p, () => []);
+    b.bark();
+    p.barking = 0;
+    const [got, off] = capture(["bark:cooldown"]);
+    if (b.bark()) return "冷卻中還能吠";
+    off();
+    if (got.length !== 1) return "沒有提示冷卻中";
+    for (let i = 0; i < Math.ceil(BAL.bark.cooldown * 60) + 1; i++) b.update(1 / 60);
+    return b.bark() ? true : "冷卻結束了還不能吠";
+  });
+
+  check("鼻尖碰得到也算:身體離太遠、鼻子夠近就能按 E 撿", () => {
+    const bag = new Backpack(memoryStorage());
+    const item = { id: "bell", x: 0, z: BAL.items.pickupRange + 0.6 };
+    bag.ground.push(item);
+    const inv = new Inventory(corgi(0, 0, 0), bag, null); // 面向 +z
+    if (inv.nearestGround(BAL.items.pickupRange) !== item) return "鼻子前面的東西撿不到";
+    const back = new Inventory(corgi(0, 0, Math.PI), bag, null); // 背對
+    return back.nearestGround(BAL.items.pickupRange) ? "背對太遠還撿得到" : true;
+  });
+
+  check("走過去碰到就自動撿起來(剛掉出來的要等落地)", () => {
+    const bag = new Backpack(memoryStorage());
+    const item = { id: "shell", x: 0.3, z: 0.2 };
+    bag.ground.push(item);
+    const inv = new Inventory(corgi(), bag, null);
+    inv.update(BAL.items.touchDelay * 0.5);
+    if (bag.ground.length !== 1) return "還沒落地就被撿走";
+    inv.update(BAL.items.touchDelay);
+    if (bag.ground.length !== 0 || bag.count("shell") !== 1) return "碰到了沒撿起來";
+    inv.enabled = false;
+    bag.ground.push({ id: "bell", x: 0, z: 0, age: 5 });
+    inv.update(1 / 60);
+    return bag.ground.length === 1 ? true : "在家裡(停用)時不該撿";
   });
 }

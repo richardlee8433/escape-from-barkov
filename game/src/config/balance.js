@@ -1,6 +1,6 @@
 // 所有遊戲平衡數值集中在這裡。
 // 世界尺度：170x170，角色高約 2（舊版是 1000x1000 / 角色高 30，數值已按比例重調）。
-export const VERSION = "v0.11.0";
+export const VERSION = "v0.12.0";
 
 export const BAL = {
   // gameplayY：唯一的遊戲平面。所有移動、生成、掉落、出口都貼在這個高度，
@@ -12,6 +12,7 @@ export const BAL = {
     walkSpeed: 3.6,    // 按住 Shift 走路
     proudTime: 1.6,    // 挖到寶之後看鏡頭撒嬌多久(一移動就中斷)
     sniffTime: 1.0,    // 嗅聞一次多久(結束時才知道寶物在哪個方向、多遠)
+    barkTime: 0.5,     // 吠一聲的動作多久(這段時間站定)
     radius: 0.5,       // 碰撞圓半徑(敵人推擠用)
     // 移動碰撞的身體:柯基長約 1.8、寬約 0.76,用沿面向排開的三個圓貼合輪廓,
     // 鼻子和尾巴不會插進石頭或探出溝壑邊緣
@@ -31,6 +32,9 @@ export const BAL = {
     peckReach: 2.3,        // 前搖結束時,柯基還在這個距離內才算啄中
     peckKnockback: 0.9,    // 被啄退的距離
     calmTime: 8,           // 啄到之後心滿意足地走開多久(不會一直啄同一隻柯基)
+    fleeTime: 2.2,         // 被柯基吠了:拍著翅膀往反方向逃多久
+    fleeSpeedMul: 1.35,    // 逃跑速度(乘 baseSpeed)
+    scaredCalm: 5,         // 逃完之後還驚魂未定多久(這段時間不追柯基)
     windupTime: 0.35,      // 啄擊前搖(給玩家反應時間的預告)
     aimTolerance: 0.35,    // 面向誤差在此之內才肯出手（弧度,約 20°）
     attackCd: 1.0,         // 基礎攻擊冷卻（會被難度縮短）
@@ -41,8 +45,16 @@ export const BAL = {
     playerPushDist: 1.3,   // 與玩家的最小間距（推開;要小於 attackRange 才啄得到）
   },
 
+  // 柯基吠叫(R):把附近的鴨子嚇跑
+  bark: {
+    radius: 10,        // 嚇得到多遠的鴨子
+    cooldown: 6,       // 吠完要等多久才能再吠(一直吠就不稀奇了)
+  },
+
   items: {
-    pickupRange: 3.0,     // 撿回被鴨子啄掉的東西
+    pickupRange: 3.0,     // 按 E 撿回被鴨子啄掉的東西(身體中心或鼻尖到東西的距離)
+    touchRange: 1.1,      // 走過去碰到就自動撿起來
+    touchDelay: 0.8,      // 東西掉出來多久之後才會被碰撞自動撿起(先讓它飛完、落地)
     digRange: 2.2,        // 聞到「就在這裡」的距離(寶物埋在地下,看不到)
     digSpots: 12,         // 地圖上同時埋著的寶物數量
     digRespawn: 25,       // 挖走一個之後,幾秒在別處埋一個新的
