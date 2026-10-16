@@ -327,4 +327,68 @@ export function run() {
     brain.update(1 / 60, target, 1);
     return brain.state === "chase" || brain.state === "windup" ? true : `state=${brain.state}`;
   });
+
+  suite("鴨子不會卡住");
+
+  // 用真的移動流程跑 n 秒(brain 給方向 → collision.move → 回報進度),回傳走過的總位移
+  function walk(brain, e, c, secs, target = { x: 999, y: 0, z: 999 }) {
+    const sx = e.pos.x, sz = e.pos.z;
+    for (let i = 0; i < secs * 60; i++) {
+      const it = brain.update(1 / 60, target, 1);
+      const bx = e.pos.x, bz = e.pos.z;
+      if (it.move) c.move(e.pos, it.move.x / 60, it.move.z / 60, 0.8);
+      brain.reportProgress(it.move ? it.move.length() / 60 : 0, Math.hypot(e.pos.x - bx, e.pos.z - bz), 1 / 60);
+    }
+    return Math.hypot(e.pos.x - sx, e.pos.z - sz);
+  }
+
+  check("巡邏撞到一整面牆:會轉向離開,不會一直頂著牆", () => {
+    const c = new Collision();
+    c.addBox(6, 0, 0, 1, 30); // x = 5..7 的長牆
+    const e = fakeEnemy(3, 0);
+    const brain = makeBrain(e, c);
+    brain.patrolDir = 0; // 正對著牆(+x)
+    walk(brain, e, c, 6);
+    return Math.abs(e.pos.x - 3) + Math.abs(e.pos.z) > 6 ? true : `幾乎沒動 (${e.pos.x.toFixed(1)}, ${e.pos.z.toFixed(1)})`;
+  });
+
+  check("走到地圖邊緣會轉回內側", () => {
+    const c = new Collision();
+    const edge = BAL.world.size / 2 - BAL.world.edgeMargin;
+    const e = fakeEnemy(edge - 1.5, 0);
+    const brain = makeBrain(e, c);
+    brain.patrolDir = 0; // 朝外
+    walk(brain, e, c, 8);
+    return e.pos.x < edge - 6 ? true : `還貼在邊上 x=${e.pos.x.toFixed(1)}`;
+  });
+
+  check("被吠逃跑時前面是牆:沿著牆逃開,不會貼在牆上", () => {
+    const c = new Collision();
+    c.addBox(6, 0, 0, 1, 30);
+    const e = fakeEnemy(3, 0);
+    const brain = makeBrain(e, c);
+    brain.scare(0, 0); // 從 -x 吠,往 +x(牆)逃
+    const d = walk(brain, e, c, E.fleeTime);
+    return d > 5 ? true : `只逃了 ${d.toFixed(1)}`;
+  });
+
+  check("追擊時柯基在石頭後面:繞過去,不會卡在石頭前", () => {
+    const c = new Collision();
+    c.addStatic(0, 5, 2.2);
+    const e = fakeEnemy(0, 0);
+    const brain = makeBrain(e, c);
+    brain.state = "chase";
+    const target = { x: 0, y: 0, z: 11 };
+    brain.lastKnown.set(0, 0, 11);
+    let reached = -Infinity; // 啄到之後會走開,所以看「最遠走到哪」
+    for (let i = 0; i < 6 * 60; i++) {
+      faceToward(e, target.x, target.z);
+      const it = brain.update(1 / 60, target, 1);
+      const bx = e.pos.x, bz = e.pos.z;
+      if (it.move) c.move(e.pos, it.move.x / 60, it.move.z / 60, 0.8);
+      brain.reportProgress(it.move ? it.move.length() / 60 : 0, Math.hypot(e.pos.x - bx, e.pos.z - bz), 1 / 60);
+      reached = Math.max(reached, e.pos.z);
+    }
+    return reached > 7.5 ? true : `被石頭擋住 z=${reached.toFixed(1)}`;
+  });
 }

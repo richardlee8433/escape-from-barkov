@@ -30,7 +30,12 @@ export class Enemy {
     const intent = this.brain.update(dt, player.pos, difficulty);
 
     if (intent.move) {
+      const bx = this.pos.x, bz = this.pos.z;
       collision.move(this.pos, intent.move.x * dt, intent.move.z * dt, this.hitR * 0.8);
+      // 告訴 brain 實際走了多少(卡住時它會換方向)
+      this.brain.reportProgress(Math.hypot(intent.move.x, intent.move.z) * dt, Math.hypot(this.pos.x - bx, this.pos.z - bz), dt);
+    } else {
+      this.brain.reportProgress(0, 0, dt);
     }
     if (intent.faceYaw !== null) {
       let diff = intent.faceYaw - this.root.rotation.y;
