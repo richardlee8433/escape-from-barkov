@@ -14,6 +14,7 @@ export class Input {
       if (!e.repeat) {
         if (k === "e") bus.emit("input:pickup");
         else if (k === " ") bus.emit("input:dig");
+        else if (k === "q") bus.emit("input:sniff");
         else if (k === "tab") bus.emit("input:collection");
         else if (k === "escape") bus.emit("input:close");
         else if (k === "m") bus.emit("input:bgm");
@@ -30,6 +31,12 @@ export class Input {
       this.mouse.y = -(e.clientY / innerHeight) * 2 + 1;
       this.mouse.has = true;
     });
+
+    // 滾輪縮放鏡頭(不讓頁面跟著捲動)
+    dom.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      if (e.deltaY) bus.emit("input:zoom", Math.sign(e.deltaY));
+    }, { passive: false });
 
     dom.addEventListener("mousedown", (e) => {
       if (e.button === 0) bus.emit("input:fire");

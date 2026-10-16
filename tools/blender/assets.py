@@ -545,30 +545,20 @@ def build_lilypad(name, seed, flower=False):
     return finish_object(a.to_object())
 
 
-def build_dig_mound(name, seed):
-    # 挖寶土堆:一小丘翻鬆的土,上面露出一截骨頭(柯基最愛)
+def build_dirt_pile(name, seed):
+    # 挖出來的土堆:一小丘翻鬆的土加上幾塊土塊(挖掘時在洞旁邊長大)
     rng = random.Random(seed)
     a = Asset(name)
-    mound = blob(1.0, 4, (0.55, 0.5, 0.2), loc=(0, 0, 0.0), amp=0.18, freq=2.2, seed=seed, amp2=0.05, freq2=6)
+    mound = blob(1.0, 4, (0.5, 0.42, 0.22), loc=(0, 0, 0.0), amp=0.22, freq=2.4, seed=seed, amp2=0.07, freq2=7)
     for v in mound.verts:
         if v.co.z < 0:
             v.co.z *= 0.1
     a.add(decimate(mound, 900), "dirt")
-    for _ in range(6):
+    for _ in range(9):
         ang = rng.uniform(0, 6.28)
-        d = rng.uniform(0.45, 0.7)
-        a.add(blob(rng.uniform(0.05, 0.09), 2, (1, 1, 0.6), loc=(math.cos(ang) * d, math.sin(ang) * d, 0.02),
-                   amp=0.2, freq=2, seed=rng.random() * 9), "dirt")
-    # 骨頭:斜插在土裡
-    tilt = Matrix.Rotation(math.radians(28), 3, "Y")
-    bone_bm = merge(limb((-0.22, 0, 0), (0.22, 0, 0), 0.04, 0.04, 10),
-                    blob(0.055, 2, (1, 1, 1), loc=(-0.24, 0.035, 0), amp=0.0),
-                    blob(0.055, 2, (1, 1, 1), loc=(-0.24, -0.035, 0), amp=0.0),
-                    blob(0.055, 2, (1, 1, 1), loc=(0.24, 0.035, 0), amp=0.0),
-                    blob(0.055, 2, (1, 1, 1), loc=(0.24, -0.035, 0), amp=0.0))
-    bmesh.ops.rotate(bone_bm, cent=Vector((0, 0, 0)), matrix=tilt, verts=bone_bm.verts)
-    bmesh.ops.translate(bone_bm, vec=Vector((0.12, 0.05, 0.2)), verts=bone_bm.verts)
-    a.add(bone_bm, "bone")
+        d = rng.uniform(0.3, 0.62)
+        a.add(blob(rng.uniform(0.05, 0.1), 2, (1, 1, 0.65), loc=(math.cos(ang) * d, math.sin(ang) * d, rng.uniform(0.02, 0.12)),
+                   amp=0.25, freq=2, seed=rng.random() * 9), "dirt")
     return finish_object(a.to_object())
 
 
@@ -607,5 +597,5 @@ ASSETS = {
     "waterweed": (build_waterweed, dict(seed=92), 256, 0.2, None, {"ground": False}),
     "lilypad": (build_lilypad, dict(seed=93), 256, 0.1, None, {"ground": False}),
     "lily": (build_lilypad, dict(seed=94, flower=True), 512, 0.1, None, {"ground": False}),
-    "dig_mound": (build_dig_mound, dict(seed=95), 512, 0.3),
+    "dirt_pile": (build_dirt_pile, dict(seed=95), 512, 0.3),
 }

@@ -33,17 +33,19 @@ To publish as a static site, run `node tools/build-web.mjs`: `dist/` is self-con
 | Key | Action |
 |-----|--------|
 | `W A S D` | Run |
+| Mouse wheel | Zoom in / out (clamped so models never get blurry) |
 | `Shift` (hold) | Walk |
 | Mouse | Aim |
 | Left Click | Shoot foam darts |
-| `E` | Pick up items · dig at a mound with a bone sticking out |
+| `Q` | Sniff for buried treasure |
+| `E` | Pick up items · dig where your nose says "Right here!" |
 | `E` / `Space` (while digging) | Dig when the needle is in the green zone (gold = perfect) |
 | `Tab` | Treasure Book |
 | `1` `2` `3` | Use hotbar item |
 | `F` | Extract at the exit gate |
 | `M` | Toggle music |
 
-**Goal:** fight (or sneak) your way from the west spawn to the EXIT gate on the east side of the map, cross the ravine bridge, and press `F` to extract. Ducks chase you down and peck — watch for the wind-up (a ring on the ground, the duck leans back) and get out of reach. Dig mounds hide treasures: digging is a timing minigame, and rarer treasures (Common → Uncommon → Rare → Epic → Legendary) are buried deeper, with a faster needle and a narrower zone. Three misses and the treasure slips away (you grab something common instead); moving or getting pecked by a duck interrupts the dig. Every find goes into the Treasure Book, which is saved in your browser, and the corgi shows off each find to the camera. Dug-up mounds grow back elsewhere. Enemies get faster and attack sooner the longer you survive and the more you kill.
+**Goal:** fight (or sneak) your way from the west spawn to the EXIT gate on the east side of the map, cross the ravine bridge, and press `F` to extract. Ducks chase you down and peck — watch for the wind-up (a ring on the ground, the duck leans back) and get out of reach. Treasure is buried out of sight — the ground looks like any other. Press `Q` and the corgi sniffs the ground: scent wisps drift in from the direction of the nearest treasure, and their color and count tell how close it is (cold → faint → warm → hot → *right here*). Once the nose says *right here*, press `E` and the corgi digs in front of its nose: the hole opens up, a dirt pile grows beside it and clods fly with every good shovel, and the treasure finally rises out of the hole. Digging is a timing minigame, and rarer treasures (Common → Uncommon → Rare → Epic → Legendary) are buried deeper, with a faster needle and a narrower zone. Three misses and the treasure slips away (you grab something common instead); moving or getting pecked by a duck interrupts the dig. Every find goes into the Treasure Book, which is saved in your browser, and the corgi shows off each find to the camera. A new treasure is buried somewhere else after each find, and dug holes fill back in after a while. Enemies get faster and attack sooner the longer you survive and the more you kill.
 
 ## Project structure
 

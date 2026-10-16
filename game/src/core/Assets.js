@@ -13,7 +13,7 @@ const BLENDER = [
   "bush", "bush_flower", "stump", "log",
   "fence", "gate", "bridge",
   "barrel", "crate", "chest",
-  "reeds", "waterweed", "lilypad", "lily", "dig_mound",
+  "reeds", "waterweed", "lilypad", "lily", "dirt_pile",
   // 角色:帶骨架與動畫(柯基 Idle/Walk/Run/Dig/Proud,鴨子 Idle/Walk/Run/Peck)
   "corgi", "duck",
 ];

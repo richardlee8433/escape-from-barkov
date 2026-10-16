@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { CameraRig, segmentHitsObb } from "../src/render/CameraRig.js";
+import { CameraRig, segmentHitsObb, CAMERA_OFFSET, ZOOM_MIN, ZOOM_MAX } from "../src/render/CameraRig.js";
 import { suite, check, eq } from "./harness.js";
 
 // 造一個帶兩個 mesh 的假遮蔽體，兩個 mesh 共用同一份材質——
@@ -181,5 +181,28 @@ export function run() {
   check("瞄準平面貼齊遊戲平面 y=0", () => {
     const rig = makeRig();
     return eq(rig._plane.constant, 0);
+  });
+
+  suite("滾輪縮放");
+
+  check("一直往前滾也不會近過最小距離(再近模型會糊)", () => {
+    const rig = new CameraRig(new THREE.PerspectiveCamera(), new THREE.Scene());
+    for (let i = 0; i < 50; i++) rig.zoomBy(-1);
+    return eq(rig.zoomTarget, ZOOM_MIN, 1e-9);
+  });
+
+  check("一直往後滾也不會遠過最大距離", () => {
+    const rig = new CameraRig(new THREE.PerspectiveCamera(), new THREE.Scene());
+    for (let i = 0; i < 50; i++) rig.zoomBy(1);
+    return eq(rig.zoomTarget, ZOOM_MAX, 1e-9);
+  });
+
+  check("縮放只改距離,不改鏡頭角度", () => {
+    const rig = new CameraRig(new THREE.PerspectiveCamera(), new THREE.Scene());
+    rig.zoomBy(-3);
+    for (let i = 0; i < 120; i++) rig.follow(new THREE.Vector3(), 1 / 60);
+    const a = rig.offset.clone().normalize(), b = CAMERA_OFFSET.clone().normalize();
+    if (a.distanceTo(b) > 1e-6) return "角度變了";
+    return eq(rig.offset.length() / CAMERA_OFFSET.length(), rig.zoomTarget, 1e-3);
   });
 }

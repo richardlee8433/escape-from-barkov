@@ -18,6 +18,7 @@ import { Bgm } from "./audio/Bgm.js";
 import { HUD } from "./ui/HUD.js";
 import { Screens } from "./ui/Screens.js";
 import { DigUI } from "./ui/DigUI.js";
+import { DigFx } from "./render/DigFx.js";
 import { CollectionUI } from "./ui/CollectionUI.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
@@ -42,7 +43,7 @@ screens.onStart(async (onProgress) => {
   spawner.spawnEnemies(BAL.enemy.count, player.pos);
   spawner.scatterItems(player.pos);
   const collection = new Collection();
-  const digSpots = new DigSpots(game.scene, assets, collision, world.canDig, player.pos, collection);
+  const digSpots = new DigSpots(world.canDig, collision, player.pos, collection);
   const inventory = new Inventory(player, spawner, digSpots);
   const exitSystem = new ExitSystem(world.exitPos, player, game.input);
 
@@ -50,6 +51,7 @@ screens.onStart(async (onProgress) => {
   const vfx = new Vfx(game.scene);
   const hud = new HUD();
   const digUI = new DigUI(digSpots);
+  const digFx = new DigFx(game.scene, assets, world.grass);
   const book = new CollectionUI(collection);
   hud.camYaw = rig.yaw;
   new Sfx();
@@ -59,6 +61,10 @@ screens.onStart(async (onProgress) => {
   bus.on("input:fire", () => {
     if (!game.paused) combat.firePlayer(player, rig.aimPoint);
   });
+  bus.on("input:sniff", () => {
+    if (!game.paused) digSpots.sniff(player);
+  });
+  bus.on("input:zoom", (steps) => rig.zoomBy(steps));
   bus.on("player:died", () => (game.paused = true));
   // 翻圖鑑時遊戲暫停(挖到一半就先中斷,土堆留著)
   let pausedBefore = false;
@@ -95,11 +101,12 @@ screens.onStart(async (onProgress) => {
       world.updateWater(t);
       spawner.updateItems(t);
       digUI.frame();
+      digFx.frame(dt);
       vfx.frame(dt, game.camera, new Set(spawner.enemies));
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book }; // Console 檢查用
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx }; // Console 檢查用
 
   game.start();
   hud.show();
@@ -108,4 +115,5 @@ screens.onStart(async (onProgress) => {
   bus.emit("game:started");
   log(`Game started ${VERSION}`, "ok");
   log("Head to the EXIT gate on the east side and press F to extract", "info");
+  log("Treasure is buried out of sight — press Q to sniff it out 👃", "info");
 });

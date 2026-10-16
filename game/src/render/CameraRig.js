@@ -19,6 +19,12 @@ export const CAMERA_OFFSET = new THREE.Vector3(
 // 玩家站在門口也會被判定「被擋住」。改用定向包圍盒(OBB)做精確的線段測試:
 // 把相機→目標頭頂的線段轉進建築的本地座標,再做 slab 測試。
 // o: { x, z, ry, hx, hz, top },本地座標 x∈[-hx,hx]、y∈[0,top]、z∈[-hz,hz]
+// 滾輪縮放的範圍(相對預設距離 30)。最近 13.5 公尺:再近模型的烘焙貼圖與毛就會開始糊;
+// 最遠 37.5 公尺:再遠會超出太陽陰影的範圍、草的密度也撐不住。
+export const ZOOM_MIN = 0.45;
+export const ZOOM_MAX = 1.25;
+export const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+
 export function segmentHitsObb(cam, target, o) {
   const c = Math.cos(o.ry), s = Math.sin(o.ry);
   const toLocal = (px, pz) => {
@@ -53,6 +59,8 @@ export class CameraRig {
     this.yaw = YAW;
 
     this.offset = CAMERA_OFFSET.clone();
+    this.zoom = 1;        // 目前的縮放(平滑追上 zoomTarget)
+    this.zoomTarget = 1;
 
     this.aimPoint = null;
     this._ray = new THREE.Raycaster();
@@ -138,12 +146,19 @@ export class CameraRig {
     });
   }
 
+  // 滾輪一格 = 12%;往前滾拉近
+  zoomBy(steps) {
+    this.zoomTarget = clampZoom(this.zoomTarget * Math.pow(1.12, steps));
+  }
+
   snapTo(pos) {
     this.camera.position.copy(pos).add(this.offset);
     this.camera.lookAt(pos.x, pos.y + 1, pos.z);
   }
 
   follow(pos, dt) {
+    this.zoom += (this.zoomTarget - this.zoom) * Math.min(1, dt * 8);
+    this.offset.copy(CAMERA_OFFSET).multiplyScalar(this.zoom);
     const target = pos.clone().add(this.offset);
     this.camera.position.lerp(target, Math.min(dt * 5, 1));
     this.camera.lookAt(pos.x, pos.y + 1, pos.z);

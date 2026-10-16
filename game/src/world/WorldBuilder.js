@@ -20,8 +20,9 @@ export function buildWorld(scene, assets, collision) {
   const sun = new THREE.DirectionalLight(0xffe2b8, 3.1);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -32; sun.shadow.camera.right = 32;
-  sun.shadow.camera.top = 32; sun.shadow.camera.bottom = -32;
+  // 陰影範圍要蓋住拉到最遠的鏡頭(CameraRig.ZOOM_MAX)
+  sun.shadow.camera.left = -38; sun.shadow.camera.right = 38;
+  sun.shadow.camera.top = 38; sun.shadow.camera.bottom = -38;
   sun.shadow.camera.near = 1; sun.shadow.camera.far = 130;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.02;

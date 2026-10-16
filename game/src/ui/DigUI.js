@@ -16,6 +16,12 @@ export class DigUI {
     this.judge = bar.querySelector(".dig-judge");
     this.card = document.getElementById("reveal");
     this.hideTimer = 0;
+    this.scent = document.getElementById("scent");
+    this.scentTimer = 0;
+
+    // 嗅聞:先顯示「聞聞中」,聞完換成遠近的結果(顏色跟畫面上的氣味一樣)
+    bus.on("sniff:start", () => this.say("👃 Sniffing…", "#f0e3c8", 1.6));
+    bus.on("sniff:result", ({ scent }) => this.say(`👃 ${scent.label}`, scent.color, 2.8));
 
     bus.on("dig:game", ({ need }) => {
       this.card.classList.add("hidden");
@@ -65,6 +71,14 @@ export class DigUI {
     this._restart(c, "");
     clearTimeout(this.hideTimer);
     this.hideTimer = setTimeout(() => c.classList.add("hidden"), 3400);
+  }
+
+  say(text, color, secs) {
+    this.scent.textContent = text;
+    this.scent.style.color = color;
+    this._restart(this.scent, "");
+    clearTimeout(this.scentTimer);
+    this.scentTimer = setTimeout(() => this.scent.classList.add("hidden"), secs * 1000);
   }
 
   _dots(el, n, filled, cls) {

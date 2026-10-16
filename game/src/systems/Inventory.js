@@ -16,15 +16,15 @@ export class Inventory {
 
   // E:附近有道具就撿;沒有的話,附近有土堆就挖
   pickup() {
-    if (!this.player.alive || this.player.dig) return;
+    if (!this.player.alive || this.player.dig || this.player.sniff) return;
     const item = this.spawner.nearestItem(this.player.pos, BAL.items.pickupRange);
     if (!item) {
-      const spot = this.digSpots?.nearest(this.player.pos, BAL.items.digRange);
+      const spot = this.digSpots?.nearest(this.player.pos, BAL.items.digRange + 0.8);
       if (spot) {
         this.digSpots.dig(spot, this.player);
         return;
       }
-      log("Nothing nearby to pick up", "info");
+      log("Nothing here… press Q to sniff for buried treasure 👃", "info");
       return;
     }
     this.put(item.type);

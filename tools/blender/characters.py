@@ -398,11 +398,25 @@ def rig_corgi(ob):
             pose(arm, e, rot=(-14 + 6 * math.sin(4 * ph), 0, 0))
         pose(arm, "jaw", rot=(10 + 6 * math.sin(8 * ph), 0, 0))  # 開心地喘氣
 
+    def sniff(t):
+        # 嗅聞:身體前傾、鼻子貼近地面左右掃、耳朵往前豎、尾巴慢慢搖
+        ph = two_pi * t
+        pose(arm, "root", loc=(0, -0.01, -0.012))
+        pose(arm, "body", rot=(9, 0, 0))
+        pose(arm, "head", rot=(34 + 4 * math.sin(4 * ph), 0, 16 * math.sin(ph)))
+        pose(arm, "jaw", rot=(-2, 0, 0))
+        for e in ("ear_L", "ear_R"):
+            pose(arm, e, rot=(10, 0, 0))
+        for b in ("leg_FL", "leg_FR"):
+            pose(arm, b, rot=(-8, 0, 0))
+        pose(arm, "tail", rot=(0, 0, 18 * math.sin(2 * ph)))
+
     add_action(arm, "Idle", 60, idle)
     add_action(arm, "Walk", 24, walk)
     add_action(arm, "Run", 14, run)
     add_action(arm, "Dig", 12, dig)
     add_action(arm, "Proud", 48, proud)
+    add_action(arm, "Sniff", 30, sniff)
     return arm
 
 
@@ -518,6 +532,19 @@ def rig_duck(ob):
             pose(arm, "root", loc=(0, -0.08 * k, 0))
             pose(arm, "wing_L", rot=(0, 45 * k, 0))
             pose(arm, "wing_R", rot=(0, -45 * k, 0))
+
+    def sniff(t):
+        # 嗅聞:身體前傾、鼻子貼近地面左右掃、耳朵往前豎、尾巴慢慢搖
+        ph = two_pi * t
+        pose(arm, "root", loc=(0, -0.01, -0.012))
+        pose(arm, "body", rot=(9, 0, 0))
+        pose(arm, "head", rot=(34 + 4 * math.sin(4 * ph), 0, 16 * math.sin(ph)))
+        pose(arm, "jaw", rot=(-2, 0, 0))
+        for e in ("ear_L", "ear_R"):
+            pose(arm, e, rot=(10, 0, 0))
+        for b in ("leg_FL", "leg_FR"):
+            pose(arm, b, rot=(-8, 0, 0))
+        pose(arm, "tail", rot=(0, 0, 18 * math.sin(2 * ph)))
 
     add_action(arm, "Idle", 60, idle)
     add_action(arm, "Walk", 24, walk)

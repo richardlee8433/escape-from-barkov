@@ -2,6 +2,8 @@ import { BAL } from "../src/config/balance.js";
 import { RARITIES, TREASURES, byId, rollTier, pickTreasure } from "../src/config/treasures.js";
 import { DigGame } from "../src/systems/DigGame.js";
 import { Collection } from "../src/systems/Collection.js";
+import { DigSpots, SCENTS, scentAt, DIG_AHEAD } from "../src/systems/DigSpots.js";
+import { bus } from "../src/core/EventBus.js";
 import { suite, check, eq } from "./harness.js";
 
 // 把指針直接放到某個位置再按(測判定,不靠時間)
@@ -164,5 +166,89 @@ export function run() {
     const col = new Collection(memoryStorage());
     col.add("not-a-thing");
     return eq(col.found, 0);
+  });
+
+  suite("嗅聞找寶");
+
+  // 一片空地、一個寶物,柯基站在 (0, 0) 面向 +z
+  function field(spotX, spotZ) {
+    const ds = Object.create(DigSpots.prototype);
+    ds.collection = new Collection(memoryStorage());
+    ds.spots = [{ x: spotX, z: spotZ, tier: 0, found: false, holed: false }];
+    ds.respawns = [];
+    ds.active = null;
+    ds.nearby = false;
+    return ds;
+  }
+  function corgi(x = 0, z = 0) {
+    return {
+      pos: { x, z }, alive: true, busy: false, root: { rotation: { y: 0 } },
+      startSniff(cb) { cb(); return true; }, startDig() { return true; }, endDig() {},
+    };
+  }
+  function sniffOnce(ds, p) {
+    let got = null;
+    const off = bus.on("sniff:result", (e) => (got = e));
+    ds.sniff(p);
+    off();
+    return got;
+  }
+
+  check("氣味由近到遠:就在這裡 → 熱 → 溫 → 微弱 → 冷", () => {
+    const ids = [0.5, BAL.items.digRange + 0.1, 10, 20, 60].map((d) => scentAt(d).id);
+    return eq(ids.join(","), "here,hot,warm,faint,cold");
+  });
+
+  check("氣味的距離門檻由近到遠排好,最後一級涵蓋無限遠", () => {
+    for (let i = 1; i < SCENTS.length; i++) if (SCENTS[i].max <= SCENTS[i - 1].max) return `第 ${i} 級門檻沒有變大`;
+    return SCENTS.at(-1).max === Infinity;
+  });
+
+  check("嗅聞回報最近寶物的方向與距離", () => {
+    const r = sniffOnce(field(0, 10), corgi());
+    if (!r) return "沒有結果";
+    if (Math.abs(r.dist - 10) > 1e-6) return `dist=${r.dist}`;
+    return r.dirZ > 0.99 && r.scent.id === "warm" ? true : `dir=(${r.dirX},${r.dirZ}) ${r.scent.id}`;
+  });
+
+  check("寶物看不到:沒聞到之前按 E 也挖不到", () => {
+    const ds = field(0, 1);
+    return ds.nearest({ x: 0, z: 0 }, 3) === null;
+  });
+
+  check("聞到「就在這裡」之後才挖得到", () => {
+    const ds = field(0, 1.5);
+    sniffOnce(ds, corgi());
+    return ds.nearest({ x: 0, z: 0 }, 3) === ds.spots[0];
+  });
+
+  check("離得遠時聞了也不會標記成找到", () => {
+    const ds = field(0, 8);
+    sniffOnce(ds, corgi());
+    return ds.spots[0].found === false;
+  });
+
+  check("洞開在柯基鼻子前面(不是埋寶的精確位置)", () => {
+    const ds = field(0.8, 1.6);
+    const p = corgi();
+    sniffOnce(ds, p);
+    ds.dig(ds.spots[0], p);
+    const s = ds.spots[0];
+    ds.cancel("test");
+    return Math.abs(s.x) < 1e-6 && Math.abs(s.z - DIG_AHEAD) < 1e-6 ? true : `(${s.x}, ${s.z})`;
+  });
+
+  check("中斷之後再挖,還是同一個洞", () => {
+    const ds = field(0, 1.5);
+    const p = corgi();
+    sniffOnce(ds, p);
+    ds.dig(ds.spots[0], p);
+    ds.cancel("moved");
+    const s = ds.spots[0];
+    const before = [s.x, s.z];
+    p.pos.x = 0.5;
+    ds.dig(s, p);
+    ds.cancel("moved");
+    return s.x === before[0] && s.z === before[1];
   });
 }

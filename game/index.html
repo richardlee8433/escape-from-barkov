@@ -96,6 +96,14 @@
     @keyframes judgepop { 0% { opacity: 0; transform: translateY(6px) scale(.8); } 25% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-8px); } }
     @keyframes digshake { 25% { transform: translateX(calc(-50% - 6px)); } 75% { transform: translateX(calc(-50% + 6px)); } }
 
+    /* 嗅聞結果 */
+    #scent {
+      position: fixed; bottom: 128px; left: 50%; transform: translateX(-50%); z-index: 22;
+      font-size: 18px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,.7); white-space: nowrap;
+      pointer-events: none; animation: scentin .3s ease-out;
+    }
+    @keyframes scentin { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translateX(-50%); } }
+
     /* 挖到寶的卡片 */
     #reveal {
       position: fixed; top: 14%; left: 50%; transform: translateX(-50%); z-index: 23;
@@ -175,7 +183,7 @@
     @keyframes extractpulse { from { opacity: .95; } to { opacity: 0; } }
 
     @media (prefers-reduced-motion: reduce) {
-      #dmg-dirs .arc, #hurt-flash.on, #extract-flash.on, #reveal, #digbar.shake, #digbar .dig-judge.pop { animation-duration: .01s; }
+      #dmg-dirs .arc, #hurt-flash.on, #extract-flash.on, #reveal, #scent, #digbar.shake, #digbar .dig-judge.pop { animation-duration: .01s; }
     }
 
     /* ---- 結束畫面 ---- */
@@ -205,7 +213,7 @@
 
   <div id="title-screen">
     <h1>🐕 Escape from Barkov</h1>
-    <div class="ver">v0.9.3 — a fluffier, more realistic corgi, treasure digging and realistic trees</div>
+    <div class="ver">v0.9.4 — sniff out buried treasure, dig it up, zoom with the mouse wheel</div>
     <button id="btn-start">Start Game</button>
     <button id="btn-howto">How to Play</button>
   </div>
@@ -213,9 +221,10 @@
   <div id="howto" class="hidden">
     <div class="card">
       <h3>How to Play</h3>
-      <div><kbd>W A S D</kbd> Run · hold <kbd>Shift</kbd> to walk</div>
+      <div><kbd>W A S D</kbd> Run · hold <kbd>Shift</kbd> to walk · <kbd>Mouse wheel</kbd> Zoom</div>
+      <div><kbd>Q</kbd> Sniff — treasure is buried out of sight; follow the scent (cold → faint → warm → hot)</div>
       <div><kbd>Mouse</kbd> Aim · <kbd>Left Click</kbd> Shoot</div>
-      <div><kbd>E</kbd> Pick up items / dig at a 🦴 mound · <kbd>1 2 3</kbd> Use hotbar item</div>
+      <div><kbd>E</kbd> Pick up items / dig where your nose says "Right here!" · <kbd>1 2 3</kbd> Use hotbar item</div>
       <div>Digging: press <kbd>E</kbd> or <kbd>Space</kbd> when the needle is in the green (gold = perfect)</div>
       <div><kbd>Tab</kbd> Treasure Book — rarer treasures are buried deeper</div>
       <div>Watch out: ducks chase you and peck when they wind up</div>
@@ -234,6 +243,7 @@
     <div class="slot">1</div><div class="slot">2</div><div class="slot">3</div>
   </div>
   <div id="tip" class="hidden"></div>
+  <div id="scent" class="hidden"></div>
   <div id="digbar" class="hidden">
     <div class="dig-judge"></div>
     <div class="dig-head"><span>Digging…</span><span>Depth <span class="dig-depth"></span></span></div>

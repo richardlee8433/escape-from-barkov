@@ -34,16 +34,21 @@ function tuftGeometry() {
   return geo;
 }
 
+const MAX_CUTS = 8;
+
 export class GrassField {
   constructor(scene, isGrassAt, colorAt, count = 80000) {
     const size = BAL.world.size;
     const geo = tuftGeometry();
 
     this.uTime = { value: 0 };
+    // 挖開的洞:圈內的草壓扁不見(最多 MAX_CUTS 個,x、z、半徑)
+    this.uCuts = { value: Array.from({ length: MAX_CUTS }, () => new THREE.Vector3(0, 0, 0)) };
     const mat = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, roughness: 0.95, metalness: 0 });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = this.uTime;
-      sh.vertexShader = "uniform float uTime;\nvarying float vBladeH;\n" + sh.vertexShader
+      sh.uniforms.uCuts = this.uCuts;
+      sh.vertexShader = `uniform float uTime;\nuniform vec3 uCuts[${MAX_CUTS}];\nvarying float vBladeH;\n` + sh.vertexShader
         .replace(
           "#include <beginnormal_vertex>",
           "#include <beginnormal_vertex>\n objectNormal = vec3(0.0, 1.0, 0.0);"
@@ -55,7 +60,11 @@ export class GrassField {
            float swayW = pow(max(vBladeH, 0.0), 1.8);
            float ph = instanceMatrix[3][0] * 0.55 + instanceMatrix[3][2] * 0.85;
            transformed.x += sin(uTime * 1.7 + ph) * swayW * 0.06;
-           transformed.z += cos(uTime * 1.3 + ph * 1.3) * swayW * 0.04;`
+           transformed.z += cos(uTime * 1.3 + ph * 1.3) * swayW * 0.04;
+           for (int i = 0; i < ${MAX_CUTS}; i++) {
+             vec3 cut = uCuts[i];
+             if (cut.z > 0.0 && distance(instanceMatrix[3].xz, cut.xy) < cut.z) transformed *= 0.0;
+           }`
         );
       sh.fragmentShader = "varying float vBladeH;\n" + sh.fragmentShader
         .replace(
@@ -119,5 +128,13 @@ export class GrassField {
 
   setTime(t) {
     this.uTime.value = t;
+  }
+
+  // cuts: [{ x, z, r }](超過 MAX_CUTS 個只取前面的)
+  setCuts(cuts) {
+    this.uCuts.value.forEach((v, i) => {
+      const c = cuts[i];
+      v.set(c ? c.x : 0, c ? c.z : 0, c ? c.r : 0);
+    });
   }
 }
