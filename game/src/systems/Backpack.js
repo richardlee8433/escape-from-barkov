@@ -1,5 +1,6 @@
 import { TREASURES, byId } from "../config/treasures.js";
 import { bus, log } from "../core/EventBus.js";
+import { t, trName } from "../i18n/i18n.js";
 
 // 背包:挖到的寶物都放這裡(同一種疊在一起),存在瀏覽器裡,下次開遊戲還在。
 // 圖鑑記的是「挖到過哪些」,背包記的是「現在身上有什麼」。
@@ -96,7 +97,7 @@ export class Backpack {
     this.ground.splice(i, 1);
     this.add(item.id);
     bus.emit("backpack:picked", { item, treasure: byId[item.id] });
-    log(`Picked up ${byId[item.id].name} 🎒`, "ok");
+    log(t("log.picked", { name: trName(byId[item.id]) }), "ok");
     return true;
   }
 

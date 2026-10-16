@@ -114,7 +114,7 @@ export class CameraRig {
         const d2 = dx * dx + dz * dz;
         if (d2 > o.r * o.r) continue;
         // 視線一路往下降，所以要在物件「靠玩家那一側的邊緣」比高度，
-        // 而不是在圓心——在圓心比會漏掉那些只擋住視線末段的矮石頭。
+        // 而不是在圓心,在圓心比會漏掉那些只擋住視線末段的矮石頭。
         const far = Math.min(1, k + Math.sqrt(o.r * o.r - d2) / Math.sqrt(len2));
         if (o.top > cam.y + (t.y + 1.2 - cam.y) * far) hit.add(o);
       }

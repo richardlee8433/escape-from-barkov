@@ -2,6 +2,7 @@ import { BAL } from "../config/balance.js";
 import { RARITIES, rollTier, pickTreasure } from "../config/treasures.js";
 import { bus, log } from "../core/EventBus.js";
 import { DigGame } from "./DigGame.js";
+import { t, trName, rarityName } from "../i18n/i18n.js";
 
 // 埋在地下的寶物。地面上看不出來,柯基要用鼻子找:
 //   Q 嗅聞 → 一秒後知道最近的寶物在哪個方向、有多遠(冷 / 微弱 / 溫 / 熱 / 就在這裡)
@@ -13,9 +14,9 @@ import { DigGame } from "./DigGame.js";
 export const SCENTS = [
   { id: "here", max: BAL.items.digRange, label: "Right here! Press E to dig 🐾", color: "#ffc23d" },
   { id: "hot", max: 6, label: "Hot!! It's very close", color: "#ff7a3d" },
-  { id: "warm", max: 14, label: "Warm — getting closer", color: "#ffd36b" },
+  { id: "warm", max: 14, label: "Warm, getting closer", color: "#ffd36b" },
   { id: "faint", max: 28, label: "A faint scent…", color: "#bfe3a0" },
-  { id: "cold", max: Infinity, label: "Cold — nothing around here", color: "#9fb7c9" },
+  { id: "cold", max: Infinity, label: "Cold. Nothing around here", color: "#9fb7c9" },
 ];
 export const DIG_AHEAD = 1.55;
 export const scentAt = (dist) => SCENTS.find((s) => dist <= s.max);
@@ -36,6 +37,7 @@ export class DigSpots {
     bus.on("input:dig", press);
     bus.on("input:click", press);
     bus.on("enemy:peck", () => this.cancel("peck"));
+    bus.on("lang:changed", () => { this.nearby = false; });
   }
 
   // 找一塊空草地埋下寶物;找不到就算了(下次再試)
@@ -98,7 +100,7 @@ export class DigSpots {
     const near = player.alive && !player.dig && !!this.nearest(player.pos, BAL.items.digRange + 0.8);
     if (near !== this.nearby) {
       this.nearby = near;
-      bus.emit(near ? "tip:show" : "tip:hide", { msg: "Press E to dig here 🐾" });
+      bus.emit(near ? "tip:show" : "tip:hide", { msg: t("tip.dig") });
     }
   }
 
@@ -140,7 +142,7 @@ export class DigSpots {
     this.active = null;
     a.player.endDig(false);
     bus.emit("dig:cancel", { reason, spot: a.spot });
-    if (reason === "peck") log("A duck pecked you mid-dig! 🦆", "warn");
+    if (reason === "peck") log(t("log.peckedDig"), "warn");
   }
 
   _finish() {
@@ -161,8 +163,7 @@ export class DigSpots {
       x: spot.x, z: spot.z, spot, treasure, tier, qty, isNew, perfect, success: game.success,
       count: entry ? entry.count : 1, found: this.collection.found, total: this.collection.total,
     });
-    const r = RARITIES[tier].name;
-    if (!game.success) log(`It slipped deeper… grabbed a ${treasure.name} instead`, "info");
-    else log(`Dug up ${treasure.name}${qty > 1 ? ` ×${qty}` : ""} (${r})${perfect ? " — perfect dig!" : ""}${isNew ? " NEW!" : ""}`, "ok");
+    if (!game.success) log(t("log.slipped", { name: trName(treasure) }), "info");
+    else log(t("log.dug", { name: trName(treasure), qty, rarity: rarityName(RARITIES[tier]), perfect, isNew }), "ok");
   }
 }

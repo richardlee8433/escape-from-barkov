@@ -1,5 +1,6 @@
 import { BAL } from "../config/balance.js";
 import { bus } from "../core/EventBus.js";
+import { t } from "../i18n/i18n.js";
 
 // 回家的大門:走進範圍出現提示,按 F 回到柯基的小屋(見 Home)。
 export class ExitSystem {
@@ -9,6 +10,7 @@ export class ExitSystem {
     this.input = input;
     this.done = false;
     this.nearby = false;
+    bus.on("lang:changed", () => { this.nearby = false; });
   }
 
   // 從家裡回來:可以再按 F 回家
@@ -27,7 +29,7 @@ export class ExitSystem {
 
     if (near !== this.nearby) {
       this.nearby = near;
-      bus.emit(near ? "tip:show" : "tip:hide", { msg: "Press F to go home 🏡" });
+      bus.emit(near ? "tip:show" : "tip:hide", { msg: t("tip.home") });
     }
 
     if (near && this.input.isDown("f")) {

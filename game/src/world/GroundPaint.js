@@ -352,7 +352,7 @@ export function buildGround() {
     g.globalAlpha = 1;
   }
 
-  // 湖:逐像素依「到湖岸的距離」上色 —— 湖底淺沙、岸上一圈乾沙灘,再淡入草地
+  // 湖:逐像素依「到湖岸的距離」上色,湖底淺沙、岸上一圈乾沙灘,再淡入草地
   function paintLake() {
     const B = LAKE_BOUNDS;
     const px0 = Math.max(0, Math.floor(tx(B.x0))), px1 = Math.min(TEX, Math.ceil(tx(B.x1)));

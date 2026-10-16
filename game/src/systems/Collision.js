@@ -3,9 +3,9 @@ import { BAL } from "../config/balance.js";
 // 2D 碰撞:遊戲永遠在 BAL.world.gameplayY 這一個平面上,這一層完全不存在高度概念。
 //
 // 靜態障礙有三種形狀,讓碰撞貼合模型的實際輪廓:
-//   circle  —— 樹幹、木桶、水井(addStatic)
-//   capsule —— 長條物:柵欄、橋欄杆、圓木、長形巨石(addCapsule)
-//   box     —— 方正物:農舍、木箱、寶箱(addBox,可轉角度)
+//   circle:樹幹、木桶、水井(addStatic)
+//   capsule:長條物:柵欄、橋欄杆、圓木、長形巨石(addCapsule)
+//   box:方正物:農舍、木箱、寶箱(addBox,可轉角度)
 // 另外有「溝壑區」(addRavine):一條帶狀禁區,只有開口(橋面)能通過,
 // 而且在開口裡左右被欄杆夾住,不會一半在橋上、一半掉進溝裡。
 //
@@ -13,7 +13,7 @@ import { BAL } from "../config/balance.js";
 // 解算、子彈、視線、可放置判斷全部建立在這一個操作上。
 //
 // 角色用「身體」解算:半徑 r 的圓,或沿面向排開的三個圓(長條形的柯基),
-// body = { r, half, fx, fz } —— half 是頭尾圓心到中心的距離,(fx,fz) 是面向。
+// body = { r, half, fx, fz }:half 是頭尾圓心到中心的距離,(fx,fz) 是面向。
 // 只傳一個數字就是單一圓。
 const HALF = BAL.world.size / 2;
 const BOUND = HALF - BAL.world.edgeMargin;
@@ -68,7 +68,7 @@ function contact(s, x, z) {
   return _c;
 }
 
-// 線段 a→b 與形狀(縮放 k 倍)是否相交 —— 視線判斷用
+// 線段 a→b 與形狀(縮放 k 倍)是否相交:視線判斷用
 function segmentHits(s, ax, az, bx, bz, k) {
   if (s.kind === "circle") {
     const [qx, qz] = closestOnSegment(s.x, s.z, ax, az, bx, bz);
@@ -157,7 +157,7 @@ export class Collision {
   }
 
   // 溝壑:沿 points 的帶狀禁區,半寬 halfWidth(畫面上深色的部分)。
-  // openings:[{ x, z, ux, uz, halfLen, halfWidth }] —— 橋面,沿 (ux,uz) 方向通行,
+  // openings:[{ x, z, ux, uz, halfLen, halfWidth }]:橋面,沿 (ux,uz) 方向通行,
   // halfWidth 是欄杆內側到橋中線的距離。擋移動,不擋子彈與視線。
   addRavine(points, halfWidth, openings = []) {
     const rv = { points, halfWidth, openings };
@@ -328,7 +328,7 @@ export class Collision {
   // 角色移動的唯一入口:從合法位置 pos 移動 (dx,dz)。
   //  1. 位移大時切成小步,薄的柵欄/欄杆不會被一步跨過去(擊退 1.2 公尺也安全)
   //  2. 每一小步先試整段位移;解不開就只試 x 或只試 z(貼牆滑動);
-  //     都不行就原地不動 —— 角色永遠不會停在障礙物裡。
+  //     都不行就原地不動,角色永遠不會停在障礙物裡。
   move(pos, dx, dz, b) {
     const body = Collision._body(b);
     const dist = Math.hypot(dx, dz);

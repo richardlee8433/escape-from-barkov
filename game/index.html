@@ -192,6 +192,26 @@
       border: 1px solid #8a6f4a; background: #5b4630; color: #ffe9bd; font-size: 13px; cursor: pointer; padding: 0; }
     #picker .pk-label { margin-top: 14px; font-size: 13px; color: #cdb896; }
     #picker .pk-empty { grid-column: 1 / -1; text-align: center; color: #8f7a58; font-size: 13px; padding: 14px; }
+    /* 設定:右上角齒輪 + 面板(標題畫面、信、說明上面也能開) */
+    #settings-btn {
+      position: fixed; top: 14px; right: 16px; z-index: 60; width: 42px; height: 42px; border-radius: 10px;
+      font-size: 21px; line-height: 1; cursor: pointer; color: #ffe9bd;
+      background: rgba(20, 15, 8, .62); border: 1px solid rgba(138, 111, 74, .6); box-shadow: 0 3px 10px rgba(0,0,0,.35);
+    }
+    #settings-btn:hover { background: rgba(60, 45, 28, .8); }
+    #settings { z-index: 62; }
+    #settings .card { width: min(440px, 92vw); }
+    #settings .set-row { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+    #settings .set-label { width: 110px; font-size: 15px; }
+    #settings .seg { display: flex; border: 1px solid #8a6f4a; border-radius: 9px; overflow: hidden; }
+    #settings .seg button { font: inherit; font-size: 14px; padding: 7px 16px; border: 0; cursor: pointer;
+      background: #3a2f20; color: #e8dcc0; }
+    #settings .seg button + button { border-left: 1px solid #8a6f4a; }
+    #settings .seg button.on { background: #ffc963; color: #2c2418; font-weight: 700; }
+    #settings input[type=range] { flex: 1; min-width: 140px; accent-color: #ffc963; }
+    #settings .set-val { width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: #ffc963; }
+    #settings .panel-hint { margin-top: 20px; }
+    html[lang="zh-Hant"] #letter .paper { font-family: "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", "Kaiti TC", "Noto Serif TC", serif; font-size: 17px; }
     /* 進出家門的淡入淡出 */
     #fade { position: fixed; inset: 0; z-index: 28; background: #0d0a06; opacity: 0; pointer-events: none;
       transition: opacity .35s ease; }
@@ -249,57 +269,58 @@
   <div id="app"></div>
 
   <div id="title-screen">
-    <h1>🐕 Dig, Corgi, Dig!</h1>
-    <div class="sub">a treasure hunt in the village of Barkov</div>
-    <div class="ver">v0.12.3 — a letter from Mom, and a good loud bark</div>
-    <button id="btn-start">Start Game</button>
-    <button id="btn-howto">How to Play</button>
+    <h1>🐕 <span data-i18n="title.name">Dig, Corgi, Dig!</span></h1>
+    <div class="sub" data-i18n="title.sub">a treasure hunt in the village of Barkov</div>
+    <div class="ver">v0.13.0 · <span data-i18n="title.tagline">a letter from Mom, and a good loud bark</span></div>
+    <button id="btn-start" data-i18n="btn.start">Start Game</button>
+    <button id="btn-howto" data-i18n="btn.howto">How to Play</button>
   </div>
 
   <div id="letter" class="hidden">
     <div class="paper">
       <div class="stamp">🐾</div>
-      <p class="greet">My dear pup,</p>
-      <p>If you are reading this, the old cottage in Barkov is yours now. It has stood empty for a long time — the roof lets the rain in, the floorboards have given up, and I'm afraid the ducks have made themselves quite at home in the village.</p>
-      <p>When your father and I were young, we buried all sorts of things around Barkov: planks and nails for a rainy day, straw for the roof, and a few small treasures that meant the world to us. Most of them are still out there, waiting.</p>
-      <p>Use that wonderful nose of yours. Sniff them out, dig them up, and make the cottage a home again. And if the ducks give you any trouble, a good loud bark works wonders.</p>
-      <p class="sign">All my love,<br>Mom</p>
-      <p class="ps">P.S. Look out for half a photo. You'll know it when you find it.</p>
-      <button class="go" disabled>Loading…</button>
+      <p class="greet" data-i18n-html="letter.greet"></p>
+      <p data-i18n-html="letter.p1"></p>
+      <p data-i18n-html="letter.p2"></p>
+      <p data-i18n-html="letter.p3"></p>
+      <p class="sign" data-i18n-html="letter.sign"></p>
+      <p class="ps" data-i18n-html="letter.ps"></p>
+      <button class="go" disabled data-i18n="loading">Loading…</button>
     </div>
   </div>
   <div id="howto" class="hidden">
     <div class="card">
-      <h3>How to Play</h3>
-      <div><kbd>W A S D</kbd> Run · hold <kbd>Shift</kbd> to walk · <kbd>Mouse wheel</kbd> Zoom</div>
-      <div><kbd>Q</kbd> <svg class="icon-nose" viewBox="0 0 32 21" aria-hidden="true">  <defs><linearGradient id="nose-g2" x1="0" y1="0" x2="0" y2="1">    <stop offset="0" stop-color="#55504f"/><stop offset=".45" stop-color="#262324"/><stop offset="1" stop-color="#0d0c0d"/>  </linearGradient></defs>  <path d="M16 1.5C7.6 1.5 1.5 4.2 1.5 9.4c0 4.6 4.1 8.8 8.8 9.3 2.6.3 4.3-.9 5.7-2.4 1.4 1.5 3.1 2.7 5.7 2.4 4.7-.5 8.8-4.7 8.8-9.3 0-5.2-6.1-7.9-14.5-7.9z"    fill="url(#nose-g2)" stroke="#f0e3c8" stroke-opacity=".7" stroke-width="1"/>  <path d="M4.6 12.4c.4-2.8 3.3-4.1 6-3.1.9.3.9 1.6 0 2-1.7.7-2.3 2.4-3.6 3.3-1.2.8-2.6-.5-2.4-2.2z" fill="#030303"/>  <path d="M27.4 12.4c-.4-2.8-3.3-4.1-6-3.1-.9.3-.9 1.6 0 2 1.7.7 2.3 2.4 3.6 3.3 1.2.8 2.6-.5 2.4-2.2z" fill="#030303"/>  <path d="M16 9.8v6.2" stroke="#030303" stroke-width="1.3" stroke-linecap="round"/>  <ellipse cx="16" cy="4.9" rx="7.5" ry="1.7" fill="#fff" opacity=".42"/>  <ellipse cx="9" cy="6.4" rx="1.6" ry=".8" fill="#fff" opacity=".3"/></svg>Sniff — treasure is buried out of sight; follow the scent (cold → faint → warm → hot)</div>
-      <div><kbd>E</kbd> Dig where your nose says "Right here!" · pick up things you dropped</div>
-      <div>Digging: press <kbd>E</kbd> or <kbd>Space</kbd> when the needle is in the green (gold = perfect)</div>
-      <div><kbd>B</kbd> Backpack · <kbd>Tab</kbd> Treasure Book — rarer treasures are buried deeper</div>
-      <div>Ducks are mischievous: a peck knocks you back and makes you drop something — walk over it (or press <kbd>E</kbd>) to pick it back up</div>
-      <div><kbd>R</kbd> Bark — nearby ducks flap away in a panic (then it needs a few seconds to recharge)</div>
-      <div><kbd>F</kbd> Go home at the HOME gate · <kbd>M</kbd> Toggle music</div>
-      <div>At home: <kbd>E</kbd> repair what your nose points at with things you dug up, or decorate shelves and tables with your treasures</div>
-      <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;">Close</button>
+      <h3 data-i18n="howto.title">How to Play</h3>
+      <div data-i18n-html="howto.move"></div>
+      <div data-i18n-html="howto.sniff"></div>
+      <div data-i18n-html="howto.dig"></div>
+      <div data-i18n-html="howto.mini"></div>
+      <div data-i18n-html="howto.panels"></div>
+      <div data-i18n-html="howto.ducks"></div>
+      <div data-i18n-html="howto.bark"></div>
+      <div data-i18n-html="howto.home"></div>
+      <div data-i18n-html="howto.house"></div>
+      <div data-i18n-html="howto.settings"></div>
+      <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;" data-i18n="btn.close">Close</button>
     </div>
   </div>
 
   <div id="hud" class="hidden">
-    <span id="bag-btn" title="Backpack (B)">🎒 <b id="bag-count">0</b></span>
-    <span id="dex-btn" title="Treasure Book (Tab)">📖 <b id="dex-count">0</b></span>
-    <span id="bark-btn" title="Bark (R) — scares nearby ducks away">🗯️ <b id="bark-state">R</b></span>
-    <span id="home-stat" title="Cottage repairs">🏡 <b id="home-count">0/8</b></span>
+    <span id="bag-btn" data-i18n-title="hud.bag">🎒 <b id="bag-count">0</b></span>
+    <span id="dex-btn" data-i18n-title="hud.book">📖 <b id="dex-count">0</b></span>
+    <span id="bark-btn" data-i18n-title="hud.bark">🗯️ <b id="bark-state">R</b></span>
+    <span id="home-stat" data-i18n-title="hud.home">🏡 <b id="home-count">0/8</b></span>
   </div>
   <div id="tip" class="hidden"></div>
   <div id="scent" class="hidden"></div>
   <div id="digbar" class="hidden">
     <div class="dig-judge"></div>
-    <div class="dig-head"><span>Digging…</span><span>Depth <span class="dig-depth"></span></span></div>
+    <div class="dig-head"><span data-i18n="dig.title">Digging…</span><span><span data-i18n="dig.depth">Depth</span> <span class="dig-depth"></span></span></div>
     <div class="dig-track"><div class="dig-zone"><div class="dig-perfect"></div></div><div class="dig-needle"></div></div>
-    <div class="dig-foot"><span><kbd>E</kbd> / <kbd>Space</kbd> in the green · gold = perfect</span><span>Slips <span class="dig-tries"></span></span></div>
+    <div class="dig-foot"><span data-i18n-html="dig.help"></span><span><span data-i18n="dig.slips">Slips</span> <span class="dig-tries"></span></span></div>
   </div>
   <div id="reveal" class="hidden">
-    <div class="rv-new">NEW!</div>
+    <div class="rv-new" data-i18n="reveal.new">NEW!</div>
     <div class="rv-icon"></div>
     <div class="rv-name"></div>
     <div class="rv-rarity"></div>
@@ -308,27 +329,43 @@
   </div>
   <div id="book" class="panel hidden">
     <div class="card">
-      <div class="panel-head"><h3>📖 Treasure Book</h3><span class="panel-count"></span><button class="panel-close" title="Close">✕</button></div>
+      <div class="panel-head"><h3 data-i18n="book.title">📖 Treasure Book</h3><span class="panel-count"></span><button class="panel-close" data-i18n-title="btn.close">✕</button></div>
       <div class="panel-grid"></div>
       <div class="panel-detail"></div>
-      <div class="panel-hint">Tab / Esc to close · B for the backpack · your collection is saved in this browser</div>
+      <div class="panel-hint" data-i18n="book.hint"></div>
     </div>
   </div>
   <div id="bag" class="panel hidden">
     <div class="card">
-      <div class="panel-head"><h3>🎒 Backpack</h3><span class="panel-count"></span><button class="panel-close" title="Close">✕</button></div>
+      <div class="panel-head"><h3 data-i18n="bag.title">🎒 Backpack</h3><span class="panel-count"></span><button class="panel-close" data-i18n-title="btn.close">✕</button></div>
       <div class="panel-grid"></div>
       <div class="panel-detail"></div>
-      <div class="panel-hint">B / Esc to close · Tab for the Treasure Book · your backpack is saved in this browser</div>
+      <div class="panel-hint" data-i18n="bag.hint"></div>
     </div>
   </div>
   <div id="picker" class="panel hidden">
     <div class="card">
-      <div class="panel-head"><h3></h3><span class="panel-count"></span><button class="panel-close" title="Close">✕</button></div>
+      <div class="panel-head"><h3></h3><span class="panel-count"></span><button class="panel-close" data-i18n-title="btn.close">✕</button></div>
       <div class="pk-slots"></div>
-      <div class="pk-label">Pick a spot, then click a treasure from your backpack to put it there:</div>
+      <div class="pk-label" data-i18n="picker.label"></div>
       <div class="panel-grid"></div>
-      <div class="panel-hint">↩ puts a treasure back in the backpack · Esc to close</div>
+      <div class="panel-hint" data-i18n="picker.hint"></div>
+    </div>
+  </div>
+  <button id="settings-btn" data-i18n-title="settings.btn" aria-label="Settings">⚙️</button>
+  <div id="settings" class="panel hidden">
+    <div class="card">
+      <div class="panel-head"><h3 data-i18n="settings.title">⚙️ Settings</h3><span class="panel-count"></span><button class="panel-close" data-i18n-title="btn.close">✕</button></div>
+      <div class="set-row">
+        <span class="set-label" data-i18n="settings.lang">Language</span>
+        <div class="seg" id="set-lang"></div>
+      </div>
+      <div class="set-row">
+        <span class="set-label" data-i18n="settings.music">Music volume</span>
+        <input type="range" id="set-music" min="0" max="100" step="5">
+        <span id="set-music-val" class="set-val"></span>
+      </div>
+      <div class="panel-hint" data-i18n="settings.hint"></div>
     </div>
   </div>
   <div id="log" class="hidden"></div>
@@ -339,10 +376,8 @@
   <div id="end" class="hidden">
     <h2></h2>
     <p></p>
-    <div class="credits">
-      Corgi, ducks and environment modeled procedurally in Blender
-    </div>
-    <button id="btn-retry">Play Again</button>
+    <div class="credits" data-i18n="end.credits"></div>
+    <button id="btn-retry" data-i18n="end.retry">Play Again</button>
   </div>
 
   <script type="module" src="./src/main.js"></script>

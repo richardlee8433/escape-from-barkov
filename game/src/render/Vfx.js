@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { bus } from "../core/EventBus.js";
 
-// 世界空間的戰鬥回饋。全部由 Combat / EnemyBrain 發出的事件驅動——
+// 世界空間的戰鬥回饋。全部由 Combat / EnemyBrain 發出的事件驅動,
 // 這一層只負責「把已經發生的事情畫出來」，不判定命中也不改遊戲狀態。
 //
 // 所有短命特效走物件池：幾何與材質共用，執行中不配置新物件，

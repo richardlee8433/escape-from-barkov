@@ -1,6 +1,7 @@
 import { RARITIES, byId } from "../config/treasures.js";
 import { slotsOf } from "../config/home.js";
 import { bus } from "../core/EventBus.js";
+import { t, trName, rarityName, stDecorate } from "../i18n/i18n.js";
 
 // 擺設面板:上面一排是這件家具的展示位,下面是背包。
 // 先點一個位子(預設第一個空位),再點背包裡的寶物就擺上去;位子上原本有東西會收回背包。
@@ -46,24 +47,24 @@ export class DisplayPicker {
   render() {
     const st = this.station;
     const slots = slotsOf(st.id);
-    this.title.textContent = `✨ ${st.decorate}`;
+    this.title.textContent = t("picker.title", { what: stDecorate(st) });
     const filled = slots.filter((s) => this.state.displays[s.id]).length;
-    this.countEl.textContent = `${filled} / ${slots.length} spots`;
+    this.countEl.textContent = t("picker.count", { filled, n: slots.length });
 
     this.slotsEl.innerHTML = "";
     for (const s of slots) {
       const tid = this.state.displays[s.id];
-      const t = tid && byId[tid];
+      const tr = tid && byId[tid];
       const c = document.createElement("div");
-      c.className = `cell slot${t ? "" : " empty-slot"}${this.sel === s.id ? " sel" : ""}`;
-      c.style.setProperty("--rc", t ? RARITIES[t.tier].color : "#8a6f4a");
-      c.title = t ? t.name : "Empty spot";
-      c.append(t ? t.icon : "＋");
+      c.className = `cell slot${tr ? "" : " empty-slot"}${this.sel === s.id ? " sel" : ""}`;
+      c.style.setProperty("--rc", tr ? RARITIES[tr.tier].color : "#8a6f4a");
+      c.title = tr ? trName(tr) : t("picker.emptySpot");
+      c.append(tr ? tr.icon : "＋");
       c.addEventListener("click", () => { this.sel = s.id; this.render(); });
-      if (t) {
+      if (tr) {
         const back = document.createElement("button");
         back.className = "take";
-        back.title = "Put it back in the backpack";
+        back.title = t("picker.takeBack");
         back.textContent = "↩";
         back.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -81,21 +82,21 @@ export class DisplayPicker {
     if (!list.length) {
       const e = document.createElement("div");
       e.className = "pk-empty";
-      e.textContent = "Your backpack is empty — go dig up some treasure!";
+      e.textContent = t("picker.emptyBag");
       this.grid.appendChild(e);
     }
-    for (const { treasure: t, count } of list) {
+    for (const { treasure: tr, count } of list) {
       const c = document.createElement("div");
       c.className = "cell";
-      c.style.setProperty("--rc", RARITIES[t.tier].color);
-      c.title = `${t.name} (${RARITIES[t.tier].name})`;
-      c.append(t.icon);
+      c.style.setProperty("--rc", RARITIES[tr.tier].color);
+      c.title = `${trName(tr)} (${rarityName(RARITIES[tr.tier])})`;
+      c.append(tr.icon);
       const n = document.createElement("span");
       n.className = "n";
       n.textContent = `×${count}`;
       c.appendChild(n);
       c.addEventListener("click", () => {
-        if (!this.state.place(this.sel, t.id)) return;
+        if (!this.state.place(this.sel, tr.id)) return;
         // 擺好之後自動跳到下一個空位
         const next = slots.find((s) => !this.state.displays[s.id]);
         if (next) this.sel = next.id;

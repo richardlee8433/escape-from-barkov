@@ -1,5 +1,6 @@
 import { BAL } from "../config/balance.js";
 import { bus, log } from "../core/EventBus.js";
+import { t } from "../i18n/i18n.js";
 
 // 撿回被鴨子啄掉的東西:
 //   - 按 E:身體中心或鼻尖離東西 pickupRange 以內就撿起來
@@ -45,7 +46,7 @@ export class Inventory {
       this.digSpots.dig(spot, this.player);
       return;
     }
-    log("Nothing here… press Q to sniff for buried treasure :nose:", "info");
+    log(t("log.nothing"), "info");
   }
 
   // 走過去碰到就撿(東西剛掉出來時先等它落地)

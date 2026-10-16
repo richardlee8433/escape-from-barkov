@@ -1,4 +1,5 @@
 import { bus } from "../core/EventBus.js";
+import { t } from "../i18n/i18n.js";
 
 // 開始 / 說明 / 死亡 / 勝利畫面。
 export class Screens {
@@ -22,17 +23,19 @@ export class Screens {
     const go = letter.querySelector(".go");
     this.startBtn.onclick = async () => {
       this.startBtn.disabled = true;
-      this.startBtn.textContent = "Loading…";
+      this.startBtn.textContent = t("loading");
       letter.classList.remove("hidden");
       go.disabled = true;
-      go.textContent = "Loading…";
+      go.textContent = t("loading");
       try {
         await fn((done, total) => {
-          go.textContent = `Loading… ${done}/${total}`;
+          go.textContent = t("loading.n", { done, total });
         });
         this.title.classList.add("hidden");
         go.disabled = false;
-        go.textContent = "Let's go! 🐾";
+        go.textContent = t("letsgo");
+        // 載完之後才換語言:按鈕跟著換
+        bus.on("lang:changed", () => { go.textContent = t("letsgo"); });
         go.focus();
         go.onclick = () => {
           letter.classList.add("hidden");
@@ -42,7 +45,7 @@ export class Screens {
         // 載入失敗要說出來,不能讓按鈕看起來「沒反應」
         console.error(err);
         letter.classList.add("hidden");
-        this.startBtn.textContent = "Load failed — click to retry";
+        this.startBtn.textContent = t("load.failed");
         this.startBtn.title = String(err?.message || err);
         this.startBtn.disabled = false;
         this.startBtn.onclick = () => location.reload();
@@ -51,8 +54,8 @@ export class Screens {
   }
 
   showEnd() {
-    this.end.querySelector("h2").textContent = "🎉 You Escaped!";
-    this.end.querySelector("p").textContent = "You made it out of Barkov with a backpack full of treasure.";
+    this.end.querySelector("h2").textContent = t("end.title");
+    this.end.querySelector("p").textContent = t("end.text");
     this.end.classList.remove("hidden");
   }
 }

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { CameraRig, segmentHitsObb, CAMERA_OFFSET, ZOOM_MIN, ZOOM_MAX } from "../src/render/CameraRig.js";
 import { suite, check, eq } from "./harness.js";
 
-// 造一個帶兩個 mesh 的假遮蔽體，兩個 mesh 共用同一份材質——
+// 造一個帶兩個 mesh 的假遮蔽體，兩個 mesh 共用同一份材質,
 // 跟 Assets.instantiate 的 clone(true) 行為一致
 function fakeOccluder(x, z, r, top, sharedMat) {
   const holder = new THREE.Group();
@@ -130,7 +130,7 @@ export function run() {
 
   suite("建築遮蔽(定向包圍盒)");
 
-  // 一棟 10 x 6.6、高 8 的房子,長邊轉了 0.35 弧度——跟遊戲裡的農舍一樣
+  // 一棟 10 x 6.6、高 8 的房子,長邊轉了 0.35 弧度,跟遊戲裡的農舍一樣
   const house = (x, z, ry = 0.35) => ({ x, z, ry, hx: 5, hz: 3.3, top: 8, obb: true });
 
   check("房子擋在相機與玩家之間時淡出", () => {

@@ -1,5 +1,6 @@
 import { bus } from "../core/EventBus.js";
 import { setIconText } from "./icons.js";
+import { t, trName } from "../i18n/i18n.js";
 
 // HUD 只聽事件,完全不碰遊戲物件。
 export class HUD {
@@ -13,7 +14,7 @@ export class HUD {
     // 被啄:畫面邊緣一道弧光指向出手的鴨子;掉了什麼寫進紀錄
     bus.on("player:pecked", ({ fromX, fromZ }) => this.showDamageDir(fromX, fromZ));
     bus.on("backpack:dropped", ({ treasure }) =>
-      bus.emit("log", { msg: `Quack! A duck made you drop ${treasure.name} — press E to pick it up`, level: "warn" }));
+      bus.emit("log", { msg: t("log.quack", { name: trName(treasure) }), level: "warn" }));
     bus.on("victory", () => this.flash(this.extractEl));
 
 

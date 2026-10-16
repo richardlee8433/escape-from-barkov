@@ -1,5 +1,6 @@
 import { RARITIES, TREASURES } from "../config/treasures.js";
 import { bus } from "../core/EventBus.js";
+import { t, trName, trDesc, rarityName } from "../i18n/i18n.js";
 
 // 寶物圖鑑面板(Tab 或點 HUD 的 📖 開關)。
 // 沒挖到的顯示「?」,但框的顏色透露稀有度:讓玩家知道還有什麼等著被挖出來。
@@ -61,14 +62,14 @@ export class CollectionUI {
 
   render() {
     const col = this.collection;
-    this.countEl.textContent = `${col.found} / ${col.total} found`;
-    TREASURES.forEach((t, i) => {
-      const e = col.get(t.id);
+    this.countEl.textContent = t("book.count", { found: col.found, total: col.total });
+    TREASURES.forEach((tr, i) => {
+      const e = col.get(tr.id);
       const c = this.cells[i];
-      c.className = `cell${e ? "" : " unfound"}${this.selected === t ? " sel" : ""}`;
-      c.title = e ? t.name : `??? (${RARITIES[t.tier].name})`;
+      c.className = `cell${e ? "" : " unfound"}${this.selected === tr ? " sel" : ""}`;
+      c.title = e ? trName(tr) : t("book.unknown", { rarity: rarityName(RARITIES[tr.tier]) });
       c.innerHTML = "";
-      c.append(e ? t.icon : "?");
+      c.append(e ? tr.icon : "?");
       if (e) {
         const n = document.createElement("span");
         n.className = "n";
@@ -90,15 +91,15 @@ export class CollectionUI {
     this.render();
   }
 
-  _detail(t) {
-    const e = this.collection.get(t.id);
-    const r = RARITIES[t.tier];
+  _detail(tr) {
+    const e = this.collection.get(tr.id);
+    const r = RARITIES[tr.tier];
     const d = this.detailEl;
     d.style.setProperty("--rc", r.color);
     d.innerHTML = "";
     const big = document.createElement("div");
     big.className = "big";
-    big.textContent = e ? t.icon : "?";
+    big.textContent = e ? tr.icon : "?";
     const info = document.createElement("div");
     const line = (cls, text) => {
       const x = document.createElement("div");
@@ -106,11 +107,9 @@ export class CollectionUI {
       x.textContent = text;
       info.appendChild(x);
     };
-    line("nm", e ? t.name : "???");
-    line("rr", r.name);
-    line("ds", e
-      ? `${t.desc}  —  found ×${e.count}${e.perfect ? " · ★ perfect dig" : ""}`
-      : "Still buried somewhere. Rarer treasures sit deeper and are harder to dig.");
+    line("nm", e ? trName(tr) : "???");
+    line("rr", rarityName(r));
+    line("ds", e ? t("book.found", { desc: trDesc(tr), n: e.count, perfect: e.perfect }) : t("book.buried"));
     d.append(big, info);
   }
 }

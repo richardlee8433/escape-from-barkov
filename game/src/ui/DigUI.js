@@ -2,6 +2,7 @@ import { BAL } from "../config/balance.js";
 import { RARITIES } from "../config/treasures.js";
 import { bus } from "../core/EventBus.js";
 import { setIconText } from "./icons.js";
+import { t, trName, trDesc, rarityName, scentLabel } from "../i18n/i18n.js";
 
 // 挖掘小遊戲的長條 + 挖到寶的卡片。
 // 長條的指針與綠區每幀從 DigSpots.active 讀;其餘(層數、判定、卡片)只聽事件。
@@ -21,8 +22,8 @@ export class DigUI {
     this.scentTimer = 0;
 
     // 嗅聞:先顯示「聞聞中」,聞完換成遠近的結果(顏色跟畫面上的氣味一樣)
-    bus.on("sniff:start", () => this.say(":nose: Sniffing…", "#f0e3c8", 1.6));
-    bus.on("sniff:result", ({ scent }) => this.say(`:nose: ${scent.label}`, scent.color, 2.8));
+    bus.on("sniff:start", () => this.say(t("sniff.start"), "#f0e3c8", 1.6));
+    bus.on("sniff:result", ({ scent }) => this.say(`:nose: ${scentLabel(scent)}`, scent.color, 2.8));
 
     bus.on("dig:game", ({ need }) => {
       this.card.classList.add("hidden");
@@ -35,7 +36,7 @@ export class DigUI {
     bus.on("dig:hit", ({ result, hits, need, misses, maxMiss }) => {
       this._dots(this.depth, need, hits, "on");
       this._dots(this.tries, maxMiss, misses, "lost");
-      this.judge.textContent = result === "perfect" ? "Perfect!" : result === "good" ? "Good" : "Miss";
+      this.judge.textContent = t(`judge.${result}`);
       this._restart(this.judge, `dig-judge pop ${result}`);
       if (result === "miss") this._restart(this.bar, "shake");
     });
@@ -62,13 +63,13 @@ export class DigUI {
     const c = this.card;
     c.style.setProperty("--rc", r.color);
     c.querySelector(".rv-icon").textContent = treasure.icon;
-    c.querySelector(".rv-name").textContent = qty > 1 ? `${treasure.name} ×${qty}` : treasure.name;
-    c.querySelector(".rv-rarity").textContent = r.name;
-    c.querySelector(".rv-desc").textContent = treasure.desc;
+    c.querySelector(".rv-name").textContent = qty > 1 ? `${trName(treasure)} ×${qty}` : trName(treasure);
+    c.querySelector(".rv-rarity").textContent = rarityName(r);
+    c.querySelector(".rv-desc").textContent = trDesc(treasure);
     c.querySelector(".rv-new").classList.toggle("hidden", !isNew);
     c.querySelector(".rv-note").textContent = !success
-      ? "It slipped deeper… you grabbed this instead."
-      : perfect ? "★ Perfect dig!" : isNew ? "Added to your Treasure Book" : `You have ${count} of these`;
+      ? t("reveal.slipped")
+      : perfect ? t("reveal.perfect") : isNew ? t("reveal.added") : t("reveal.have", { n: count });
     this._restart(c, "");
     clearTimeout(this.hideTimer);
     this.hideTimer = setTimeout(() => c.classList.add("hidden"), 3400);

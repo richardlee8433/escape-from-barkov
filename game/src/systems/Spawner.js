@@ -1,6 +1,7 @@
 import { BAL } from "../config/balance.js";
 import { log } from "../core/EventBus.js";
 import { Enemy } from "../entities/Enemy.js";
+import { t } from "../i18n/i18n.js";
 
 // 鴨子的生成與整體更新。鴨子陣列由這裡擁有。
 const E = BAL.enemy;
@@ -26,7 +27,7 @@ export class Spawner {
       }
       this.enemies.push(new Enemy(this.scene, this.assets, this.collision, x, z));
     }
-    log(`Enemies spawned x${n} (spread across the map)`, "warn");
+    log(t("log.spawned", { n }), "info");
   }
 
   // 敵人整體更新（AI + 彼此/玩家推開)

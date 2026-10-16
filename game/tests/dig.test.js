@@ -270,9 +270,9 @@ export function run() {
 
   check(":nose: 換成黑色狗鼻子的 SVG,其餘文字照原樣", () => {
     const el = document.createElement("div");
-    setIconText(el, ":nose: Warm — getting closer");
+    setIconText(el, ":nose: Warm, getting closer");
     if (!el.querySelector("svg.icon-nose")) return "沒有狗鼻子圖示";
-    return eq(el.textContent.trim(), "Warm — getting closer");
+    return eq(el.textContent.trim(), "Warm, getting closer");
   });
 
   check("文字裡的 HTML 不會被解析(不會被插入元素)", () => {

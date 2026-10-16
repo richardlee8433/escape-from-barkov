@@ -1,5 +1,6 @@
 import { HOME_SCALE as S, STATIONS, DOOR, ROOM, slotsOf } from "../config/home.js";
 import { bus, log } from "../core/EventBus.js";
+import { t, trName, stVerb, stDecorate } from "../i18n/i18n.js";
 
 // 在家裡走來走去、按 E 互動。
 //   鼻子靠近還沒修好的地方 → 提示要什麼材料;夠了就按 E,柯基叼著材料修一會兒,修好換模型
@@ -22,6 +23,7 @@ export class Home {
     this.tipMsg = null;
     bus.on("input:pickup", () => this.interact());
     bus.on("backpack:changed", () => { if (this.active) this.view.apply(); });
+    bus.on("lang:changed", () => { this.tipMsg = null; });
   }
 
   enter() {
@@ -77,11 +79,11 @@ export class Home {
 
   // 提示文字
   describe(st) {
-    if (st.id === "door") return "Press E to go out digging 🐾";
-    if (this.state.isRepaired(st.id)) return `Press E · ${st.decorate}`;
+    if (st.id === "door") return t("tip.door");
+    if (this.state.isRepaired(st.id)) return t("tip.decorate", { what: stDecorate(st) });
     const parts = this.state.needs(st.id).map((n) => `${n.treasure.icon} ${Math.min(n.have, n.need)}/${n.need}`);
-    if (this.state.canRepair(st.id)) return `Press E · ${st.verb} (${parts.join(" ")})`;
-    return `${st.verb}: needs ${parts.join(" · ")}`;
+    if (this.state.canRepair(st.id)) return t("tip.repairReady", { verb: stVerb(st), parts: parts.join(" ") });
+    return t("tip.repairNeed", { verb: stVerb(st), parts: parts.join(" · ") });
   }
 
   interact() {
@@ -98,8 +100,8 @@ export class Home {
     }
     if (!this.state.canRepair(st.id)) {
       const miss = this.state.needs(st.id).filter((n) => n.have < n.need)
-        .map((n) => `${n.treasure.name} ×${n.need - n.have}`);
-      log(`Not enough to ${st.verb.toLowerCase()} — still need ${miss.join(", ")}. Go dig some up!`, "warn");
+        .map((n) => `${trName(n.treasure)} ×${n.need - n.have}`);
+      log(t("log.notEnough", { verb: stVerb(st), miss: miss.join(", ") }), "warn");
       bus.emit("home:need", { id: st.id });
       return;
     }
@@ -121,7 +123,7 @@ export class Home {
     if (!ok) return;
     this.view.apply();
     this.view.puff(station.id);
-    if (this.state.coziness >= 1) log("The whole cottage is fixed up. Home sweet home 🏡", "ok");
+    if (this.state.coziness >= 1) log(t("log.allFixed"), "ok");
   }
 
   _tip(msg) {

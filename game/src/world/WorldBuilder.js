@@ -9,6 +9,8 @@ import { FlowerField } from "./Flowers.js";
 import { Water, FishSchool } from "./Water.js";
 import { InstancedProp, placeMatrix } from "./Props.js";
 import { CAMERA_OFFSET } from "../render/CameraRig.js";
+import { bus } from "../core/EventBus.js";
+import { t } from "../i18n/i18n.js";
 
 // 把整張地圖搭出來：光、地面、草、石牆、樹、營地、橋、出口。
 // 需要擋路的東西都跟 collision 註冊圓形碰撞體。
@@ -101,7 +103,7 @@ export function buildWorld(scene, assets, collision) {
   const LOW = { blocksBullets: false };
 
   // 夠高、可能擋住玩家或敵人的物件登記成遮蔽體,交給相機做淡出。
-  // 半徑量「視覺外接圓」而不是碰撞半徑——碰撞圓通常比模型窄(樹幹 vs 樹冠),
+  // 半徑量「視覺外接圓」而不是碰撞半徑,碰撞圓通常比模型窄(樹幹 vs 樹冠),
   // 拿它當遮蔽範圍會漏掉一堆實際上真的擋住畫面的樹冠與石頭邊緣。
   // top 記世界座標的頂端高度,相機才能判斷它是否真的切到視線。
   const occluders = [];
@@ -522,7 +524,7 @@ export function buildWorld(scene, assets, collision) {
   const exitAng = Math.atan2(ex - px2, ez - pz2);
   // 大門橫跨路面:模型 x 軸(橫梁)轉到與路垂直的方向 side(),
   // 門柱在 ±1.9,兩側各接一片柵欄(中心 ±3.55,長 3.3)。
-  // 旋轉 exitAng 時模型 x 軸在世界是 (cos, -sin) —— 正好是 side() 的方向。
+  // 旋轉 exitAng 時模型 x 軸在世界是 (cos, -sin),正好是 side() 的方向。
   put("gate", ex, ez, 1.0, exitAng, { dim: "scale" });
   const side = (d) => [ex + Math.cos(exitAng) * d, ez - Math.sin(exitAng) * d];
   for (const sgn of [-1, 1]) {
@@ -535,21 +537,28 @@ export function buildWorld(scene, assets, collision) {
     collision.addCapsule(ax, az, bx, bz, 0.15, LOW);
   }
 
-  // 回家的招牌
+  // 回家的招牌(跟著語言換字)
   const cv = document.createElement("canvas");
   cv.width = 256; cv.height = 64;
   const c2 = cv.getContext("2d");
-  c2.font = "bold 42px sans-serif";
-  c2.fillStyle = "#ffd98a";
-  c2.textAlign = "center";
-  c2.fillText("HOME", 128, 48);
+  const signTex = new THREE.CanvasTexture(cv);
+  const drawSign = () => {
+    c2.clearRect(0, 0, 256, 64);
+    c2.font = "bold 42px system-ui, 'Noto Sans TC', sans-serif";
+    c2.fillStyle = "#ffd98a";
+    c2.textAlign = "center";
+    c2.fillText(t("sign.home"), 128, 48);
+    signTex.needsUpdate = true;
+  };
+  drawSign();
+  bus.on("lang:changed", drawSign);
   const label = new THREE.Mesh(
     new THREE.PlaneGeometry(6, 1.5),
-    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true })
+    new THREE.MeshBasicMaterial({ map: signTex, transparent: true })
   );
   label.position.set(ex, 4, ez);
   // 面向相機所在的方向。舊版是 lookAt(場景中心)，相機在反側，
-  // 單面材質從背面看等於完全不存在——EXIT 招牌在遊戲中根本看不到。
+  // 單面材質從背面看等於完全不存在,EXIT 招牌在遊戲中根本看不到。
   label.lookAt(label.position.clone().add(CAMERA_OFFSET));
   scene.add(label);
 

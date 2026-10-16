@@ -1,6 +1,7 @@
 import { STATIONS, SLOTS, stationById } from "../config/home.js";
 import { byId } from "../config/treasures.js";
 import { bus, log } from "../core/EventBus.js";
+import { t, stName } from "../i18n/i18n.js";
 
 // 家的進度:修好了哪些地方、哪個展示位擺了什麼。存在瀏覽器裡,下次回家還在。
 // 修理會用掉背包裡的材料;擺出來的寶物離開背包,收回來再放回背包。
@@ -51,7 +52,7 @@ export class HomeState {
     this.repaired.add(id);
     this._save();
     bus.emit("home:repaired", { id, station: stationById[id], coziness: this.coziness });
-    log(`${stationById[id].name} repaired! 🔨`, "ok");
+    log(t("log.repaired", { name: stName(stationById[id]) }), "ok");
     return true;
   }
 

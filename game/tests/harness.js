@@ -53,7 +53,7 @@ export function report() {
     }
     const d = document.createElement("div");
     d.className = r.ok ? "ok" : "fail";
-    d.textContent = `${r.ok ? "PASS" : "FAIL"}  ${r.desc}${r.detail ? " — " + r.detail : ""}`;
+    d.textContent = `${r.ok ? "PASS" : "FAIL"}  ${r.desc}${r.detail ? " : " + r.detail : ""}`;
     root.appendChild(d);
   }
   const s = document.createElement("h2");

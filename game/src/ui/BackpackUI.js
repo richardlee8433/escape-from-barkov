@@ -1,6 +1,7 @@
 import { RARITIES } from "../config/treasures.js";
 import { bus } from "../core/EventBus.js";
 import { BAG_SLOTS } from "../systems/Backpack.js";
+import { t, trName, trDesc, rarityName } from "../i18n/i18n.js";
 
 // 背包面板(B 或點 HUD 的 🎒 開關):挖到的寶物一格一種,疊數量,依稀有度排序。
 // 打開時遊戲暫停;和圖鑑面板互斥(開一個就關另一個)。
@@ -60,7 +61,7 @@ export class BackpackUI {
   render() {
     const list = this.backpack.list();
     const bp = this.backpack;
-    this.countEl.textContent = `${bp.total} item${bp.total === 1 ? "" : "s"} · ${bp.kinds} kind${bp.kinds === 1 ? "" : "s"}`;
+    this.countEl.textContent = t("bag.count", { total: bp.total, kinds: bp.kinds });
     if (this.selected && !bp.count(this.selected.id)) this.selected = null;
     this.cells.forEach((c, i) => {
       const entry = list[i];
@@ -72,16 +73,16 @@ export class BackpackUI {
         c.title = "";
         return;
       }
-      const t = entry.treasure;
-      c.className = `cell${this.selected === t ? " sel" : ""}`;
-      c.style.setProperty("--rc", RARITIES[t.tier].color);
-      c.title = t.name;
-      c.append(t.icon);
+      const tr = entry.treasure;
+      c.className = `cell${this.selected === tr ? " sel" : ""}`;
+      c.style.setProperty("--rc", RARITIES[tr.tier].color);
+      c.title = trName(tr);
+      c.append(tr.icon);
       const n = document.createElement("span");
       n.className = "n";
       n.textContent = `×${entry.count}`;
       c.appendChild(n);
-      c.onclick = () => { this.selected = t; this.render(); };
+      c.onclick = () => { this.selected = tr; this.render(); };
     });
     this._detail(this.selected ? { treasure: this.selected, count: bp.count(this.selected.id) } : list[0]);
   }
@@ -92,16 +93,16 @@ export class BackpackUI {
     if (!entry) {
       const empty = document.createElement("div");
       empty.className = "ds";
-      empty.textContent = "Your backpack is empty. Press Q to sniff out buried treasure, then E to dig it up.";
+      empty.textContent = t("bag.empty");
       d.appendChild(empty);
       d.style.removeProperty("--rc");
       return;
     }
-    const t = entry.treasure;
-    d.style.setProperty("--rc", RARITIES[t.tier].color);
+    const tr = entry.treasure;
+    d.style.setProperty("--rc", RARITIES[tr.tier].color);
     const big = document.createElement("div");
     big.className = "big";
-    big.textContent = t.icon;
+    big.textContent = tr.icon;
     const info = document.createElement("div");
     const line = (cls, text) => {
       const x = document.createElement("div");
@@ -109,9 +110,9 @@ export class BackpackUI {
       x.textContent = text;
       info.appendChild(x);
     };
-    line("nm", `${t.name}  ×${entry.count}`);
-    line("rr", RARITIES[t.tier].name);
-    line("ds", t.desc);
+    line("nm", `${trName(tr)}  ×${entry.count}`);
+    line("rr", rarityName(RARITIES[tr.tier]));
+    line("ds", trDesc(tr));
     d.append(big, info);
   }
 }

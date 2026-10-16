@@ -29,9 +29,14 @@ import { HomeScene } from "./world/HomeScene.js";
 import { DisplayPicker } from "./ui/DisplayPicker.js";
 import { Bark } from "./systems/Bark.js";
 import { BarkFx } from "./render/BarkFx.js";
+import { SettingsUI } from "./ui/SettingsUI.js";
+import { t, applyStatic } from "./i18n/i18n.js";
 import { HOME_SCALE, SPAWN, STATIONS } from "./config/home.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
+// 介面文字先換成玩家的語言;右上角的設定在標題畫面就能用
+applyStatic();
+new SettingsUI();
 const screens = new Screens();
 
 screens.onStart(async (onProgress) => {
@@ -161,7 +166,7 @@ screens.onStart(async (onProgress) => {
     inventory.enabled = false;
     bus.emit("tip:hide");
     home.enter();
-    log(homeState.repaired.size ? "Home sweet home 🏡" : "Home… or what's left of it. Let's fix it up with what you dig! 🔨", "info");
+    log(t(homeState.repaired.size ? "log.homeSweet" : "log.homeBroken"), "info");
   }
 
   function leaveHome() {
@@ -233,10 +238,10 @@ screens.onStart(async (onProgress) => {
     game.paused = false;
     hud.show();
     bus.emit("game:started");
-    log(`Game started ${VERSION}`, "ok");
-    log("Your cottage is through the HOME gate on the east side — press F there to go home 🏡", "info");
-    log("Treasure is buried out of sight — press Q to sniff it out :nose:", "info");
-    log("Everything you dig up goes into your backpack 🎒 (press B)", "info");
-    log("Ducks bothering you? Press R to bark 🗯️", "info");
+    log(t("log.started", { v: VERSION }), "ok");
+    log(t("log.hint.home"), "info");
+    log(t("log.hint.sniff"), "info");
+    log(t("log.hint.bag"), "info");
+    log(t("log.hint.bark"), "info");
   });
 });

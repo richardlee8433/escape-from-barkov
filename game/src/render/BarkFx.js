@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { bus } from "../core/EventBus.js";
+import { t } from "../i18n/i18n.js";
 
 // 吠叫的回饋:柯基腳下兩圈往外擴的聲波、頭上跳出「WOOF!」,被嚇到的鴨子頭上冒「!!」。
 // 效果加在柯基目前所在的場景(地圖或家裡)。HUD 的吠叫按鈕(冷卻進度)也在這裡更新。
@@ -26,7 +27,8 @@ export class BarkFx {
     this.getScene = getScene;
     this.barker = barker;
     this.fx = [];
-    this.woofTex = textTexture("WOOF!", "#fff1c9");
+    this.woofTex = textTexture(t("bark.woof"), "#fff1c9");
+    bus.on("lang:changed", () => { this.woofTex = textTexture(t("bark.woof"), "#fff1c9"); });
     this.bangTex = textTexture("!!", "#ff8a5c", 84);
     this.ringGeo = new THREE.RingGeometry(0.85, 1.0, 48);
     this.ringGeo.rotateX(-Math.PI / 2);
