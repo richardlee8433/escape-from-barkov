@@ -58,7 +58,7 @@ export class DigFx {
       }
       return;
     }
-    const count = { hot: 18, warm: 14, faint: 8, cold: 4 }[scent.id];
+    const count = { hot: 26, warm: 20, faint: 12, cold: 5 }[scent.id];
     const nose = new THREE.Vector3(x + dirX * 0.9, 0.55, z + dirZ * 0.9);
     const side = new THREE.Vector3(-dirZ, 0, dirX);
     for (let i = 0; i < count; i++) {
@@ -74,7 +74,7 @@ export class DigFx {
       const from = new THREE.Vector3(x + dx * d + side.x * j, 0.25 + Math.random() * 0.8, z + dz * d + side.z * j);
       this.wisp({
         from, to: nose, color: scent.color, life: 1.4 + Math.random() * 0.6, delay: i * 0.06,
-        size: scent.id === "cold" ? 0.22 : 0.34, wave: 0.45, side,
+        size: scent.id === "cold" ? 0.35 : 0.6, wave: 0.45, side,
       });
     }
   }
@@ -200,7 +200,7 @@ export class DigFx {
       const sway = Math.sin(k * Math.PI * 3 + w.ph) * w.wave * (1 - k);
       w.sp.position.addScaledVector(w.side, sway);
       w.sp.position.y += Math.sin(k * Math.PI * 2 + w.ph) * 0.08;
-      w.sp.material.opacity = Math.sin(Math.PI * k) * 0.9;
+      w.sp.material.opacity = Math.min(1, Math.sin(Math.PI * k) * 1.4);
       w.sp.scale.setScalar(w.size * (1.2 - 0.6 * k));
     }
 

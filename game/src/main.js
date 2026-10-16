@@ -106,7 +106,7 @@ screens.onStart(async (onProgress) => {
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx }; // Console 檢查用
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI }; // Console 檢查用
 
   game.start();
   hud.show();
