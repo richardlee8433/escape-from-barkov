@@ -23,11 +23,9 @@ export class Sfx {
       this.ctx.resume().catch(() => {});
       beep(440, 0.12);
     });
-    bus.on("shot", () => beep(880, 0.08, "triangle"));
-    bus.on("item:picked", () => beep(1200, 0.1));
-    bus.on("player:hurt", () => beep(320, 0.18)); // 汪一聲
-    bus.on("player:healed", () => { beep(880, 0.06); beep(1320, 0.12); });
-    bus.on("player:died", () => beep(140, 0.4, "sine"));
+    bus.on("backpack:picked", () => { beep(1200, 0.08); beep(1600, 0.1); });
+    bus.on("backpack:dropped", () => [700, 520, 380].forEach((f, i) => setTimeout(() => beep(f, 0.07, "triangle", 0.05), i * 70)));
+    bus.on("player:pecked", () => beep(320, 0.18)); // 汪一聲
     bus.on("enemy:alerted", () => beep(760, 0.12)); // 「嘎!」
     bus.on("enemy:hurt", () => beep(260, 0.08, "triangle")); // 「嘎…」
     bus.on("enemy:died", () => { beep(420, 0.08); beep(260, 0.16); }); // 「哇→啊」

@@ -45,22 +45,13 @@
       border: 1px solid rgba(138, 111, 74, .5);
     }
     #hud b { color: #fff; }
-    #hotbar {
-      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-      z-index: 20; display: flex; gap: 8px;
-    }
-    #hotbar .slot {
-      width: 52px; height: 52px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
-      background: rgba(20, 15, 8, .6); border: 1px solid rgba(138, 111, 74, .55);
-      color: #b9a27b; font-size: 22px; user-select: none;
-    }
     #tip {
-      position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%); z-index: 20;
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 20;
       color: #ffe9bd; background: rgba(20, 15, 8, .7); padding: 6px 18px; border-radius: 8px; font-size: 14px;
       border: 1px solid rgba(138, 111, 74, .5);
     }
     #log {
-      position: fixed; left: 14px; bottom: 84px; z-index: 19; width: 300px; max-height: 120px;
+      position: fixed; left: 14px; bottom: 24px; z-index: 19; width: 300px; max-height: 120px;
       overflow-y: auto; font-size: 12px; line-height: 1.7; color: #cdb896;
       -webkit-mask-image: linear-gradient(to top, #000 70%, transparent);
     }
@@ -68,7 +59,7 @@
 
     /* ---- 挖掘小遊戲 ---- */
     #digbar {
-      position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%); z-index: 22;
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 22;
       width: min(380px, 88vw); padding: 10px 16px 9px; border-radius: 12px; color: #ffe9bd;
       background: rgba(20, 15, 8, .78); border: 1px solid rgba(138, 111, 74, .6); user-select: none;
     }
@@ -98,7 +89,7 @@
 
     /* 嗅聞結果 */
     #scent {
-      position: fixed; bottom: 128px; left: 50%; transform: translateX(-50%); z-index: 22;
+      position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); z-index: 22;
       font-size: 18px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,.7); white-space: nowrap;
       pointer-events: none; animation: scentin .3s ease-out;
     }
@@ -121,37 +112,38 @@
       font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 10px; transform: rotate(8deg); }
     @keyframes revealin { from { opacity: 0; transform: translate(-50%, 14px) scale(.9); } to { opacity: 1; transform: translateX(-50%); } }
 
-    /* 寶物圖鑑 */
-    #dex-btn { cursor: pointer; }
-    #book {
+    /* 寶物圖鑑、背包:共用的面板 */
+    #dex-btn, #bag-btn { cursor: pointer; }
+    .panel {
       position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,.55);
     }
-    #book .card {
+    .panel .card {
       width: min(620px, 92vw); max-height: 88vh; overflow-y: auto; box-sizing: border-box;
       background: #2c2418; color: #f0e3c8; border: 1px solid #8a6f4a; border-radius: 14px; padding: 18px 22px;
     }
-    #book .book-head { display: flex; align-items: center; gap: 12px; }
-    #book .book-head h3 { margin: 0; font-size: 20px; }
-    #book .book-count { color: #ffc963; font-weight: 600; flex: 1; }
-    #book .book-close { background: none; border: 1px solid #6d5539; color: #f0e3c8; border-radius: 8px;
+    .panel .panel-head { display: flex; align-items: center; gap: 12px; }
+    .panel .panel-head h3 { margin: 0; font-size: 20px; }
+    .panel .panel-count { color: #ffc963; font-weight: 600; flex: 1; }
+    .panel .panel-close { background: none; border: 1px solid #6d5539; color: #f0e3c8; border-radius: 8px;
       width: 32px; height: 32px; cursor: pointer; font-size: 15px; }
-    #book .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; margin-top: 14px; }
-    #book .cell {
+    .panel .panel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; margin-top: 14px; }
+    .panel .cell {
       position: relative; aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center;
       font-size: 28px; background: #3a2f20; border: 2px solid var(--rc); cursor: pointer; user-select: none;
     }
-    #book .cell.unfound { border-color: color-mix(in srgb, var(--rc) 35%, transparent); color: #6b5638; font-size: 22px; font-weight: 700; }
-    #book .cell.sel { outline: 2px solid #fff; outline-offset: 1px; }
-    #book .cell .n { position: absolute; right: 4px; bottom: 1px; font-size: 11px; color: #e8dcc0; }
-    #book .cell .star { position: absolute; left: 4px; top: 1px; font-size: 11px; color: #ffd75a; }
-    #book .book-detail { display: flex; gap: 14px; align-items: center; margin-top: 14px; min-height: 76px;
+    .panel .cell.unfound { border-color: color-mix(in srgb, var(--rc) 35%, transparent); color: #6b5638; font-size: 22px; font-weight: 700; }
+    .panel .cell.sel { outline: 2px solid #fff; outline-offset: 1px; }
+    .panel .cell .n { position: absolute; right: 4px; bottom: 1px; font-size: 11px; color: #e8dcc0; }
+    .panel .cell .star { position: absolute; left: 4px; top: 1px; font-size: 11px; color: #ffd75a; }
+    .panel .panel-detail { display: flex; gap: 14px; align-items: center; margin-top: 14px; min-height: 76px;
       padding: 10px 14px; border-radius: 10px; background: #231c12; }
-    #book .book-detail .big { font-size: 44px; width: 56px; text-align: center; }
-    #book .book-detail .nm { font-size: 16px; font-weight: 700; }
-    #book .book-detail .rr { font-size: 12px; font-weight: 600; color: var(--rc); text-transform: uppercase; letter-spacing: 1px; }
-    #book .book-detail .ds { font-size: 13px; color: #cdb896; margin-top: 3px; line-height: 1.5; }
-    #book .book-hint { margin-top: 10px; font-size: 12px; color: #8f7a58; text-align: center; }
+    .panel .panel-detail .big { font-size: 44px; width: 56px; text-align: center; }
+    .panel .panel-detail .nm { font-size: 16px; font-weight: 700; }
+    .panel .panel-detail .rr { font-size: 12px; font-weight: 600; color: var(--rc); text-transform: uppercase; letter-spacing: 1px; }
+    .panel .panel-detail .ds { font-size: 13px; color: #cdb896; margin-top: 3px; line-height: 1.5; }
+    .panel .cell.empty { border: 2px dashed rgba(138, 111, 74, .35); background: #2f271b; cursor: default; }
+    .panel .panel-hint { margin-top: 10px; font-size: 12px; color: #8f7a58; text-align: center; }
 
     /* ---- 受擊回饋 ---- */
     /* 傷害方向：一圈容器旋轉到來向，子元素是頂端的一道弧光 */
@@ -167,14 +159,6 @@
     }
     @keyframes dmgfade { from { opacity: 1; } to { opacity: 0; } }
 
-    /* 受擊全螢幕暗紅暈 */
-    #hurt-flash {
-      position: fixed; inset: 0; z-index: 20; pointer-events: none; opacity: 0;
-      box-shadow: inset 0 0 190px 60px rgba(190, 25, 15, .85);
-    }
-    #hurt-flash.on { animation: hurtpulse .45s ease-out; }
-    @keyframes hurtpulse { from { opacity: 1; } to { opacity: 0; } }
-
     /* 撤離成功的一道白光 */
     #extract-flash {
       position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0;
@@ -184,7 +168,7 @@
     @keyframes extractpulse { from { opacity: .95; } to { opacity: 0; } }
 
     @media (prefers-reduced-motion: reduce) {
-      #dmg-dirs .arc, #hurt-flash.on, #extract-flash.on, #reveal, #scent, #digbar.shake, #digbar .dig-judge.pop { animation-duration: .01s; }
+      #dmg-dirs .arc, #extract-flash.on, #reveal, #scent, #digbar.shake, #digbar .dig-judge.pop { animation-duration: .01s; }
     }
 
     /* ---- 結束畫面 ---- */
@@ -214,7 +198,7 @@
 
   <div id="title-screen">
     <h1>🐕 Escape from Barkov</h1>
-    <div class="ver">v0.9.4 — sniff out buried treasure, dig it up, zoom with the mouse wheel</div>
+    <div class="ver">v0.10.0 — no more guns: sniff, dig and fill your backpack</div>
     <button id="btn-start">Start Game</button>
     <button id="btn-howto">How to Play</button>
   </div>
@@ -224,24 +208,18 @@
       <h3>How to Play</h3>
       <div><kbd>W A S D</kbd> Run · hold <kbd>Shift</kbd> to walk · <kbd>Mouse wheel</kbd> Zoom</div>
       <div><kbd>Q</kbd> <svg class="icon-nose" viewBox="0 0 32 21" aria-hidden="true">  <defs><linearGradient id="nose-g2" x1="0" y1="0" x2="0" y2="1">    <stop offset="0" stop-color="#55504f"/><stop offset=".45" stop-color="#262324"/><stop offset="1" stop-color="#0d0c0d"/>  </linearGradient></defs>  <path d="M16 1.5C7.6 1.5 1.5 4.2 1.5 9.4c0 4.6 4.1 8.8 8.8 9.3 2.6.3 4.3-.9 5.7-2.4 1.4 1.5 3.1 2.7 5.7 2.4 4.7-.5 8.8-4.7 8.8-9.3 0-5.2-6.1-7.9-14.5-7.9z"    fill="url(#nose-g2)" stroke="#f0e3c8" stroke-opacity=".7" stroke-width="1"/>  <path d="M4.6 12.4c.4-2.8 3.3-4.1 6-3.1.9.3.9 1.6 0 2-1.7.7-2.3 2.4-3.6 3.3-1.2.8-2.6-.5-2.4-2.2z" fill="#030303"/>  <path d="M27.4 12.4c-.4-2.8-3.3-4.1-6-3.1-.9.3-.9 1.6 0 2 1.7.7 2.3 2.4 3.6 3.3 1.2.8 2.6-.5 2.4-2.2z" fill="#030303"/>  <path d="M16 9.8v6.2" stroke="#030303" stroke-width="1.3" stroke-linecap="round"/>  <ellipse cx="16" cy="4.9" rx="7.5" ry="1.7" fill="#fff" opacity=".42"/>  <ellipse cx="9" cy="6.4" rx="1.6" ry=".8" fill="#fff" opacity=".3"/></svg>Sniff — treasure is buried out of sight; follow the scent (cold → faint → warm → hot)</div>
-      <div><kbd>Mouse</kbd> Aim · <kbd>Left Click</kbd> Shoot</div>
-      <div><kbd>E</kbd> Pick up items / dig where your nose says "Right here!" · <kbd>1 2 3</kbd> Use hotbar item</div>
+      <div><kbd>E</kbd> Dig where your nose says "Right here!" · pick up things you dropped</div>
       <div>Digging: press <kbd>E</kbd> or <kbd>Space</kbd> when the needle is in the green (gold = perfect)</div>
-      <div><kbd>Tab</kbd> Treasure Book — rarer treasures are buried deeper</div>
-      <div>Watch out: ducks chase you and peck when they wind up</div>
+      <div><kbd>B</kbd> Backpack · <kbd>Tab</kbd> Treasure Book — rarer treasures are buried deeper</div>
+      <div>Ducks are mischievous: a peck knocks you back and makes you drop something</div>
       <div><kbd>F</kbd> Extract at the exit gate · <kbd>M</kbd> Toggle music</div>
       <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;">Close</button>
     </div>
   </div>
 
   <div id="hud" class="hidden">
-    <span>❤️ <b id="hp">100</b></span>
-    <span>🔫 <b id="ammo">30</b></span>
-    <span>💰 <b id="loot">0</b></span>
+    <span id="bag-btn" title="Backpack (B)">🎒 <b id="bag-count">0</b></span>
     <span id="dex-btn" title="Treasure Book (Tab)">📖 <b id="dex-count">0</b></span>
-  </div>
-  <div id="hotbar" class="hidden">
-    <div class="slot">1</div><div class="slot">2</div><div class="slot">3</div>
   </div>
   <div id="tip" class="hidden"></div>
   <div id="scent" class="hidden"></div>
@@ -259,16 +237,23 @@
     <div class="rv-desc"></div>
     <div class="rv-note"></div>
   </div>
-  <div id="book" class="hidden">
+  <div id="book" class="panel hidden">
     <div class="card">
-      <div class="book-head"><h3>📖 Treasure Book</h3><span class="book-count"></span><button class="book-close" title="Close">✕</button></div>
-      <div class="book-grid"></div>
-      <div class="book-detail"></div>
-      <div class="book-hint">Tab / Esc to close · your collection is saved in this browser</div>
+      <div class="panel-head"><h3>📖 Treasure Book</h3><span class="panel-count"></span><button class="panel-close" title="Close">✕</button></div>
+      <div class="panel-grid"></div>
+      <div class="panel-detail"></div>
+      <div class="panel-hint">Tab / Esc to close · B for the backpack · your collection is saved in this browser</div>
+    </div>
+  </div>
+  <div id="bag" class="panel hidden">
+    <div class="card">
+      <div class="panel-head"><h3>🎒 Backpack</h3><span class="panel-count"></span><button class="panel-close" title="Close">✕</button></div>
+      <div class="panel-grid"></div>
+      <div class="panel-detail"></div>
+      <div class="panel-hint">B / Esc to close · Tab for the Treasure Book · your backpack is saved in this browser</div>
     </div>
   </div>
   <div id="log" class="hidden"></div>
-  <div id="hurt-flash"></div>
   <div id="extract-flash"></div>
   <div id="dmg-dirs"></div>
 
@@ -276,8 +261,7 @@
     <h2></h2>
     <p></p>
     <div class="credits">
-      Corgi, ducks and environment modeled procedurally in Blender<br />
-      Pickups by Kenney.nl (CC0)
+      Corgi, ducks and environment modeled procedurally in Blender
     </div>
     <button id="btn-retry">Play Again</button>
   </div>

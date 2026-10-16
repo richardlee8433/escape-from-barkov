@@ -333,7 +333,7 @@ function softDot() {
 }
 
 // 挖到的寶物:稀有度顏色的光暈 + 寶物圖示
-function treasureTexture(icon, color) {
+export function treasureTexture(icon, color) {
   const S = 256;
   const cv = document.createElement("canvas");
   cv.width = cv.height = S;

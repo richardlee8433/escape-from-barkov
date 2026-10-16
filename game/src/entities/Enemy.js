@@ -7,7 +7,6 @@ const E = BAL.enemy;
 
 export class Enemy {
   constructor(scene, assets, collision, x, z) {
-    this.hp = E.hp;
     this.brain = new EnemyBrain(this, collision);
 
     this.root = new THREE.Group();

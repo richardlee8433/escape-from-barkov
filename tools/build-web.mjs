@@ -5,7 +5,7 @@
 //   dist/artifact/                  → claude.ai Artifact 版(無 GLB,見下方)
 //   需要先 npm install(Three.js 會被收進 dist/vendor/,網站不依賴 CDN 與 import map)
 //
-// 開發時遊戲從 game/ 以 ../ 往上引用 proto/ 的道具模型與 ass/ 的音樂;
+// 開發時遊戲從 game/ 以 ../ 往上引用 ass/ 的音樂;
 // 放上網站時頁面就是根目錄,../ 會指到網站外面。這裡把用到的檔案全部收進 dist/
 // 同一層,並把那幾個路徑改寫成 ./。原始碼一行都不用改。
 
@@ -23,11 +23,6 @@ const REWRITES = [
 // 遊戲執行時會載入的資產(不含 proto 自己用的整套 Kenney 模型)
 const ASSETS = [
   "ass/audio/bgm.mp3",
-  "proto/assets/models/pickups-platformer/heart.glb",
-  "proto/assets/models/pickups-platformer/Textures/colormap.png",
-  "proto/assets/models/pickups-blaster/clip-large.glb",
-  "proto/assets/models/pickups-blaster/bullet-foam.glb",
-  "proto/assets/models/pickups-blaster/Textures/colormap.png",
 ];
 
 function copy(src, dst, transform) {

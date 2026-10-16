@@ -18,7 +18,6 @@ export class Bgm {
       }
     });
     bus.on("game:started", () => this.start());
-    bus.on("player:died", () => this.stop());
     bus.on("victory", () => this.stop());
   }
 

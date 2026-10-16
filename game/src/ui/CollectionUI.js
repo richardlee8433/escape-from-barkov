@@ -7,9 +7,9 @@ export class CollectionUI {
   constructor(collection) {
     this.collection = collection;
     this.el = document.getElementById("book");
-    this.grid = this.el.querySelector(".book-grid");
-    this.detailEl = this.el.querySelector(".book-detail");
-    this.countEl = this.el.querySelector(".book-count");
+    this.grid = this.el.querySelector(".panel-grid");
+    this.detailEl = this.el.querySelector(".panel-detail");
+    this.countEl = this.el.querySelector(".panel-count");
     this.hudCount = document.getElementById("dex-count");
     this.isOpen = false;
     this.selected = null;
@@ -24,12 +24,13 @@ export class CollectionUI {
 
     bus.on("input:collection", () => this.toggle());
     bus.on("input:close", () => this.close());
+    bus.on("panel:open", ({ id }) => { if (id !== "book") this.close(); });
     bus.on("dig:found", () => {
       this.refreshCount();
       if (this.isOpen) this.render();
     });
     document.getElementById("dex-btn").addEventListener("click", () => this.toggle());
-    this.el.querySelector(".book-close").addEventListener("click", () => this.close());
+    this.el.querySelector(".panel-close").addEventListener("click", () => this.close());
     this.el.addEventListener("click", (e) => { if (e.target === this.el) this.close(); });
     this.refreshCount();
   }
@@ -41,17 +42,17 @@ export class CollectionUI {
 
   open() {
     if (this.isOpen) return;
+    bus.emit("panel:open", { id: "book" });
     this.isOpen = true;
     this.render();
     this.el.classList.remove("hidden");
-    bus.emit("book:open");
   }
 
   close() {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.el.classList.add("hidden");
-    bus.emit("book:close");
+    bus.emit("panel:close", { id: "book" });
   }
 
   refreshCount() {

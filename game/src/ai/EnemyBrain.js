@@ -10,6 +10,7 @@ import { bus } from "../core/EventBus.js";
 // 三關都要過——距離、視錐、實體遮擋——敵人才算「看見」玩家。
 // 啄擊不是一貼身就打：要先面向對準，再經過 windup 前搖(地上有預告圈),
 // 前搖結束當下重新驗證視線與距離——柯基在前搖中跑開或躲到掩體後,這一啄就落空。
+// 啄到之後鴨子心滿意足地走開一陣子(calm),不會一直追著同一隻柯基啄。
 const E = BAL.enemy;
 
 export class EnemyBrain {
@@ -21,6 +22,7 @@ export class EnemyBrain {
     this.loseSightTimer = 0;
     this.attackCd = Math.random() * E.attackCd; // 錯開初始冷卻,避免一群鴨子同時啄
     this.windup = 0;
+    this.calm = 0; // 啄到之後的「心滿意足」秒數:這段時間不理柯基
     this.lastKnown = new THREE.Vector3();
   }
 
@@ -56,6 +58,16 @@ export class EnemyBrain {
     const faceYaw = Math.atan2(dx, dz);
     const speed = E.baseSpeed * (0.8 + 0.4 * difficulty);
 
+    // 剛啄過:慢慢晃開,不追也不啄
+    if (this.calm > 0) {
+      this.calm -= dt;
+      this.state = "patrol";
+      this.patrolDir += (Math.random() - 0.5) * dt * 1.2;
+      const move = new THREE.Vector3(Math.cos(this.patrolDir), 0, Math.sin(this.patrolDir))
+        .multiplyScalar(speed * E.patrolSpeedMul);
+      return { move, faceYaw: Math.atan2(move.x, move.z), attack: false };
+    }
+
     if (seen) {
       this.lastKnown.copy(playerPos);
       this.loseSightTimer = 0;
@@ -75,6 +87,11 @@ export class EnemyBrain {
       // 前搖結束時柯基已經跑出啄得到的距離 → 落空
       const hit = dist <= E.peckReach;
       if (!hit) bus.emit("enemy:attackMiss", { enemy: this.enemy });
+      else {
+        this.calm = E.calmTime;
+        // 轉身背對柯基走開
+        this.patrolDir = Math.atan2(-dz, -dx);
+      }
       return { move: null, faceYaw, attack: hit };
     }
 

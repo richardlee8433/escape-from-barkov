@@ -12,6 +12,7 @@ import { Spawner } from "./systems/Spawner.js";
 import { Inventory } from "./systems/Inventory.js";
 import { DigSpots } from "./systems/DigSpots.js";
 import { Collection } from "./systems/Collection.js";
+import { Backpack } from "./systems/Backpack.js";
 import { ExitSystem } from "./systems/ExitSystem.js";
 import { Sfx } from "./audio/Sfx.js";
 import { Bgm } from "./audio/Bgm.js";
@@ -20,6 +21,8 @@ import { Screens } from "./ui/Screens.js";
 import { DigUI } from "./ui/DigUI.js";
 import { DigFx } from "./render/DigFx.js";
 import { CollectionUI } from "./ui/CollectionUI.js";
+import { BackpackUI } from "./ui/BackpackUI.js";
+import { GroundItems } from "./render/GroundItems.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
 const screens = new Screens();
@@ -38,13 +41,13 @@ screens.onStart(async (onProgress) => {
   const rig = new CameraRig(game.camera, game.scene);
   rig.setOccluders(world.occluders);
   rig.snapTo(player.pos);
-  const combat = new Combat(game.scene, collision, assets);
+  const combat = new Combat(collision);
   const spawner = new Spawner(game.scene, assets, collision);
   spawner.spawnEnemies(BAL.enemy.count, player.pos);
-  spawner.scatterItems(player.pos);
   const collection = new Collection();
+  const backpack = new Backpack();
   const digSpots = new DigSpots(world.canDig, collision, player.pos, collection);
-  const inventory = new Inventory(player, spawner, digSpots);
+  new Inventory(player, backpack, digSpots);
   const exitSystem = new ExitSystem(world.exitPos, player, game.input);
 
   // 回饋層(純事件訂閱,不改遊戲狀態)
@@ -53,27 +56,38 @@ screens.onStart(async (onProgress) => {
   const digUI = new DigUI(digSpots);
   const digFx = new DigFx(game.scene, assets, world.grass);
   const book = new CollectionUI(collection);
+  const bag = new BackpackUI(backpack);
+  const groundItems = new GroundItems(game.scene);
   hud.camYaw = rig.yaw;
   new Sfx();
   new Bgm();
 
   // 事件接線
-  bus.on("input:fire", () => {
-    if (!game.paused) combat.firePlayer(player, rig.aimPoint);
+  // 挖到的寶物放進背包;被鴨子啄到就掉一件在旁邊的地上(背包空的就只是被推開)
+  bus.on("dig:found", ({ treasure }) => backpack.add(treasure.id));
+  bus.on("player:pecked", ({ x, z, fromX, fromZ }) => {
+    const a = Math.random() * Math.PI * 2;
+    const d = 1.4 + Math.random() * 0.8;
+    let dx = Math.cos(a) * d, dz = Math.sin(a) * d;
+    // 掉在柯基身邊、不卡進石頭(找不到空地就掉在腳邊)
+    if (!collision.isFree(x + dx, z + dz, 0.4)) { dx = -fromX * 1.2; dz = -fromZ * 1.2; }
+    backpack.dropRandom(x + dx, z + dz, x, z);
   });
   bus.on("input:sniff", () => {
     if (!game.paused) digSpots.sniff(player);
   });
   bus.on("input:zoom", (steps) => rig.zoomBy(steps));
-  bus.on("player:died", () => (game.paused = true));
-  // 翻圖鑑時遊戲暫停(挖到一半就先中斷,土堆留著)
-  let pausedBefore = false;
-  bus.on("book:open", () => {
-    digSpots.cancel("book");
+  // 翻圖鑑或背包時遊戲暫停(挖到一半就先中斷,洞留著)。兩個面板互斥,用計數避免切換時誤解除暫停
+  let openPanels = 0, pausedBefore = false;
+  bus.on("panel:open", () => {
+    if (openPanels++ > 0) return;
+    digSpots.cancel("panel");
     pausedBefore = game.paused;
     game.paused = true;
   });
-  bus.on("book:close", () => (game.paused = pausedBefore));
+  bus.on("panel:close", () => {
+    if (--openPanels === 0) game.paused = pausedBefore;
+  });
   bus.on("victory", () => {
     game.paused = true;
     log("撤離成功!", "ok");
@@ -82,7 +96,7 @@ screens.onStart(async (onProgress) => {
   // 邏輯系統(固定 60Hz)
   game.addSystem({ update: (dt) => player.update(dt, game.input, rig, collision) });
   game.addSystem({ update: (dt) => spawner.updateEnemies(dt, player, combat) });
-  game.addSystem({ update: (dt) => combat.update(dt, spawner.enemies, player) });
+  game.addSystem({ update: (dt) => combat.update(dt) });
   game.addSystem({ update: () => exitSystem.update() });
   game.addSystem({ update: (dt) => digSpots.update(player, dt) });
 
@@ -90,7 +104,6 @@ screens.onStart(async (onProgress) => {
   game.addSystem({
     frame: (dt, t) => {
       rig.follow(player.pos, dt);
-      rig.updateAim(game.input.mouse);
       // 玩家永遠不能被擋住,敵人只在追擊時才需要看得見
       rig.updateOcclusion([
         player.pos,
@@ -99,21 +112,20 @@ screens.onStart(async (onProgress) => {
       world.followSun(player.pos);
       world.grass.setTime(t);
       world.updateWater(t);
-      spawner.updateItems(t);
+      groundItems.frame(dt, t);
       digUI.frame();
       digFx.frame(dt);
       vfx.frame(dt, game.camera, new Set(spawner.enemies));
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI }; // Console 檢查用
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI, backpack, bag, groundItems }; // Console 檢查用
 
   game.start();
   hud.show();
-  player.emitStats();
-  inventory.changed();
   bus.emit("game:started");
   log(`Game started ${VERSION}`, "ok");
   log("Head to the EXIT gate on the east side and press F to extract", "info");
   log("Treasure is buried out of sight — press Q to sniff it out :nose:", "info");
+  log("Everything you dig up goes into your backpack 🎒 (press B)", "info");
 });

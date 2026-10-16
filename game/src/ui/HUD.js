@@ -1,44 +1,21 @@
-import { ITEM_TYPES } from "../config/balance.js";
 import { bus } from "../core/EventBus.js";
 import { setIconText } from "./icons.js";
 
 // HUD 只聽事件,完全不碰遊戲物件。
-const ICONS = { [ITEM_TYPES.MEDKIT]: "🧰", [ITEM_TYPES.AMMO]: "🔫" };
-
 export class HUD {
   constructor() {
-    this.hpEl = document.getElementById("hp");
-    this.ammoEl = document.getElementById("ammo");
-    this.lootEl = document.getElementById("loot");
     this.tipEl = document.getElementById("tip");
     this.logEl = document.getElementById("log");
-    this.slots = Array.from(document.querySelectorAll("#hotbar .slot"));
     this.dirsEl = document.getElementById("dmg-dirs");
-    this.hurtEl = document.getElementById("hurt-flash");
     this.extractEl = document.getElementById("extract-flash");
     this.camYaw = 0;
 
-    bus.on("player:hurt", ({ fromX, fromZ }) => {
-      this.flash(this.hurtEl);
-      this.showDamageDir(fromX, fromZ);
-    });
+    // 被啄:畫面邊緣一道弧光指向出手的鴨子;掉了什麼寫進紀錄
+    bus.on("player:pecked", ({ fromX, fromZ }) => this.showDamageDir(fromX, fromZ));
+    bus.on("backpack:dropped", ({ treasure }) =>
+      bus.emit("log", { msg: `Quack! A duck made you drop ${treasure.name} — press E to pick it up`, level: "warn" }));
     bus.on("victory", () => this.flash(this.extractEl));
 
-    bus.on("player:stats", ({ hp, ammo, loot }) => {
-      this.hpEl.textContent = Math.round(hp);
-      this.ammoEl.textContent = ammo;
-      this.lootEl.textContent = loot;
-    });
-
-    bus.on("inventory:changed", ({ slots, index }) => {
-      this.slots.forEach((el, i) => {
-        const it = slots[i];
-        el.style.outline = i === index ? "2px solid #ffc963" : "none";
-        el.textContent = it ? ICONS[it.type] : String(i + 1);
-      });
-    });
-
-    bus.on("enemy:died", () => bus.emit("log", { msg: "Enemy down, Loot +1", level: "ok" }));
 
     bus.on("tip:show", ({ msg }) => {
       this.tipEl.textContent = msg;
@@ -81,7 +58,6 @@ export class HUD {
 
   show() {
     document.getElementById("hud").classList.remove("hidden");
-    document.getElementById("hotbar").classList.remove("hidden");
     this.logEl.classList.remove("hidden");
   }
 }

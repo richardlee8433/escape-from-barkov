@@ -12,8 +12,7 @@ export class Screens {
     document.getElementById("btn-close-howto").onclick = () => this.howto.classList.add("hidden");
     document.getElementById("btn-retry").onclick = () => location.reload();
 
-    bus.on("player:died", () => this.showEnd(false));
-    bus.on("victory", () => this.showEnd(true));
+    bus.on("victory", () => this.showEnd());
   }
 
   onStart(fn) {
@@ -37,11 +36,9 @@ export class Screens {
     };
   }
 
-  showEnd(victory) {
-    this.end.querySelector("h2").textContent = victory ? "🎉 You Escaped!" : "💀 You Got Caught";
-    this.end.querySelector("p").textContent = victory
-      ? "You made it out of Barkov alive, loot and all."
-      : "The duck firepower was too much… try again.";
+  showEnd() {
+    this.end.querySelector("h2").textContent = "🎉 You Escaped!";
+    this.end.querySelector("p").textContent = "You made it out of Barkov with a backpack full of treasure.";
     this.end.classList.remove("hidden");
   }
 }

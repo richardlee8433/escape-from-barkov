@@ -1,7 +1,7 @@
 import { bus } from "./EventBus.js";
 
 // 鍵盤 / 滑鼠統一入口。
-// 持續狀態（移動、F 長按）用 isDown()；單次動作（撿取、切格、開火）發事件。
+// 持續狀態（移動、F 長按）用 isDown()；單次動作（撿取 / 挖、嗅聞、背包、圖鑑）發事件。
 export class Input {
   constructor(dom) {
     this.keys = Object.create(null);
@@ -18,9 +18,7 @@ export class Input {
         else if (k === "tab") bus.emit("input:collection");
         else if (k === "escape") bus.emit("input:close");
         else if (k === "m") bus.emit("input:bgm");
-        else if (e.code === "Digit1") bus.emit("input:slot", 0);
-        else if (e.code === "Digit2") bus.emit("input:slot", 1);
-        else if (e.code === "Digit3") bus.emit("input:slot", 2);
+        else if (k === "b" || k === "i") bus.emit("input:bag");
       }
       this.keys[k] = true;
     });
@@ -39,7 +37,7 @@ export class Input {
     }, { passive: false });
 
     dom.addEventListener("mousedown", (e) => {
-      if (e.button === 0) bus.emit("input:fire");
+      if (e.button === 0) bus.emit("input:click"); // 挖掘小遊戲裡也能用滑鼠點
     });
   }
 
