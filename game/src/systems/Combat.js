@@ -61,7 +61,7 @@ export class Combat {
   }
 
   firePlayer(player, aimPoint) {
-    if (!player.alive || !aimPoint) return;
+    if (!player.alive || !aimPoint || player.busy) return; // 挖地、撒嬌時不開槍
     if (this.playerCd > 0) return; // 射速上限,連點滑鼠不能無限傾瀉
     if (player.ammo <= 0) {
       log("Out of ammo!", "danger");
@@ -80,6 +80,25 @@ export class Combat {
   fireEnemy(from, dir) {
     if (dir.lengthSq() < 1e-4) return;
     this._spawnBullet(this.tmplEnemy, from, dir, B.enemySpeed, "enemy");
+  }
+
+  // 鴨子的啄擊:前搖結束、確定還在範圍內才會呼叫(見 EnemyBrain)。
+  // 與子彈命中走同一套事件(combat:hit / player:hurt),受擊回饋與方向指示照常運作。
+  peck(enemy, player) {
+    if (!player.alive) return;
+    const dx = player.pos.x - enemy.pos.x;
+    const dz = player.pos.z - enemy.pos.z;
+    const L = Math.hypot(dx, dz) || 1;
+    const amount = BAL.enemy.peckDamage;
+    // 傷害來向:指回出手的鴨子
+    const fromX = -dx / L, fromZ = -dz / L;
+    bus.emit("combat:hit", { targetType: "player", x: player.pos.x, z: player.pos.z, fromX, fromZ, amount,
+      lethal: player.hp <= amount });
+    bus.emit("enemy:peck", { enemy, x: player.pos.x, z: player.pos.z });
+    player.takeDamage(amount, fromX, fromZ);
+    // 被啄退一步(走一般移動流程,不會被推進石頭或溪裡)
+    const k = BAL.enemy.peckKnockback;
+    this.collision.move(player.pos, (dx / L) * k, (dz / L) * k, player.body ? player.body() : player.radius);
   }
 
   // 所有子彈都從這裡誕生,發射事件只有這一個來源

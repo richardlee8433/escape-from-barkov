@@ -43,7 +43,7 @@ const GradeTiltShift = {
       c += texture2D(tDiffuse, vUv + vec2(-0.2,  0.95) * px).rgb * 0.095;
 
       // 暖色調色 + 輕微飽和提升
-      c *= vec3(1.045, 1.0, 0.93);
+      c *= vec3(1.03, 1.0, 0.95);
       float l = dot(c, vec3(0.299, 0.587, 0.114));
       c = mix(vec3(l), c, 1.08);
       c = pow(c, vec3(1.04));

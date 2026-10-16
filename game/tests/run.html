@@ -29,6 +29,7 @@
     import { run as runCamera } from "./camera.test.js";
     import { run as runCombat, load as loadCombat } from "./combat.test.js";
     import { run as runVfx } from "./vfx.test.js";
+    import { run as runDig } from "./dig.test.js";
 
     window.__bus = bus;
     runAi();
@@ -37,6 +38,7 @@
     await loadCombat();
     runCombat();
     runVfx();
+    runDig();
     report();
   </script>
 </body>

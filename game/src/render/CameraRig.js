@@ -15,12 +15,52 @@ export const CAMERA_OFFSET = new THREE.Vector3(
   FLAT * Math.cos(YAW)
 );
 
+// 方正的建築(農舍)不適合當成圓:長邊轉了角度之後,外接圓大到
+// 玩家站在門口也會被判定「被擋住」。改用定向包圍盒(OBB)做精確的線段測試:
+// 把相機→目標頭頂的線段轉進建築的本地座標,再做 slab 測試。
+// o: { x, z, ry, hx, hz, top },本地座標 x∈[-hx,hx]、y∈[0,top]、z∈[-hz,hz]
+// 滾輪縮放的範圍(相對預設距離 30)。最近 13.5 公尺:再近模型的烘焙貼圖與毛就會開始糊;
+// 最遠 37.5 公尺:再遠會超出太陽陰影的範圍、草的密度也撐不住。
+export const ZOOM_MIN = 0.45;
+export const ZOOM_MAX = 1.25;
+export const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+
+export function segmentHitsObb(cam, target, o) {
+  const c = Math.cos(o.ry), s = Math.sin(o.ry);
+  const toLocal = (px, pz) => {
+    const dx = px - o.x, dz = pz - o.z;
+    return [dx * c - dz * s, dx * s + dz * c];
+  };
+  const [ax, az] = toLocal(cam.x, cam.z);
+  const [bx, bz] = toLocal(target.x, target.z);
+  const a = [ax, cam.y, az];
+  const d = [bx - ax, target.y + 1.2 - cam.y, bz - az];
+  const lo = [-o.hx, 0, -o.hz];
+  const hi = [o.hx, o.top, o.hz];
+  let t0 = 0, t1 = 1;
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(d[i]) < 1e-9) {
+      if (a[i] < lo[i] || a[i] > hi[i]) return false;
+      continue;
+    }
+    let ta = (lo[i] - a[i]) / d[i];
+    let tb = (hi[i] - a[i]) / d[i];
+    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
 export class CameraRig {
   constructor(camera, scene) {
     this.camera = camera;
     this.yaw = YAW;
 
     this.offset = CAMERA_OFFSET.clone();
+    this.zoom = 1;        // 目前的縮放(平滑追上 zoomTarget)
+    this.zoomTarget = 1;
 
     this.aimPoint = null;
     this._ray = new THREE.Raycaster();
@@ -61,6 +101,10 @@ export class CameraRig {
       if (len2 < 1e-6) continue;
       for (const o of this.occluders) {
         if (hit.has(o)) continue;
+        if (o.obb) {
+          if (segmentHitsObb(cam, t, o)) hit.add(o);
+          continue;
+        }
         // k 夾在線段內而不是直接排除：玩家正站在樹冠底下時最近點就是玩家自己，
         // 這種「頭頂被蓋住」的情況一樣要淡出。
         let k = ((o.x - cam.x) * vx + (o.z - cam.z) * vz) / len2;
@@ -92,11 +136,19 @@ export class CameraRig {
         ghost.transparent = true;
         ghost.opacity = 0.22;
         ghost.depthWrite = false;
+        // 樹葉的 shader 修改不會跟著 clone 過來,要自己帶上
+        ghost.onBeforeCompile = m.material.onBeforeCompile;
+        ghost.customProgramCacheKey = m.material.customProgramCacheKey;
         m.userData.ghostMat = ghost;
       }
       m.material = faded ? m.userData.ghostMat : m.userData.solidMat;
       m.castShadow = !faded; // 淡出了還投實心影子會露餡
     });
+  }
+
+  // 滾輪一格 = 12%;往前滾拉近
+  zoomBy(steps) {
+    this.zoomTarget = clampZoom(this.zoomTarget * Math.pow(1.12, steps));
   }
 
   snapTo(pos) {
@@ -105,6 +157,8 @@ export class CameraRig {
   }
 
   follow(pos, dt) {
+    this.zoom += (this.zoomTarget - this.zoom) * Math.min(1, dt * 8);
+    this.offset.copy(CAMERA_OFFSET).multiplyScalar(this.zoom);
     const target = pos.clone().add(this.offset);
     this.camera.position.lerp(target, Math.min(dt * 5, 1));
     this.camera.lookAt(pos.x, pos.y + 1, pos.z);

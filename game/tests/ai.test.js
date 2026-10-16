@@ -16,10 +16,10 @@ function makeBrain(enemy, collision) {
 function faceToward(enemy, tx, tz) {
   enemy.root.rotation.y = Math.atan2(tx - enemy.pos.x, tz - enemy.pos.z);
 }
-// 跑到開火為止,回傳經過的秒數;沒開火回傳 null
-function runUntilFire(brain, target, maxSteps = 600, dt = 1 / 60) {
+// 跑到出手(啄擊)為止,回傳經過的秒數;沒出手回傳 null
+function runUntilAttack(brain, target, maxSteps = 600, dt = 1 / 60) {
   for (let i = 0; i < maxSteps; i++) {
-    if (brain.update(dt, target, 1).fire) return (i + 1) * dt;
+    if (brain.update(dt, target, 1).attack) return (i + 1) * dt;
   }
   return null;
 }
@@ -89,27 +89,30 @@ export function run() {
     return eq(makeBrain(e, c).canSee({ x: 0, y: 0, z: 8 }), false);
   });
 
-  suite("EnemyBrain 開火閘門");
+  suite("EnemyBrain 啄擊閘門(鴨子不拿槍,追到身邊才啄)");
 
-  check("開火前一定有 windup 前搖,不會冷卻一到就打", () => {
+  // 柯基就在嘴邊(攻擊距離內)
+  const close = () => ({ x: 0, y: 0, z: E.attackRange * 0.8 });
+
+  check("出手前一定有 windup 前搖,不會一貼身就啄", () => {
     const c = new Collision();
     const e = fakeEnemy(0, 0);
-    const target = { x: 0, y: 0, z: 6 };
+    const target = close();
     faceToward(e, target.x, target.z);
     const brain = makeBrain(e, c);
-    brain.fireCd = 0;
-    const t = runUntilFire(brain, target);
-    if (t === null) return "從未開火";
-    return t >= E.windupTime ? true : `開火過早：${t.toFixed(3)}s < windup ${E.windupTime}s`;
+    brain.attackCd = 0;
+    const t = runUntilAttack(brain, target);
+    if (t === null) return "從未出手";
+    return t >= E.windupTime ? true : `出手過早：${t.toFixed(3)}s < windup ${E.windupTime}s`;
   });
 
   check("進入 windup 時會發出預告事件", () => {
     const c = new Collision();
     const e = fakeEnemy(0, 0);
-    const target = { x: 0, y: 0, z: 6 };
+    const target = close();
     faceToward(e, target.x, target.z);
     const brain = makeBrain(e, c);
-    brain.fireCd = 0;
+    brain.attackCd = 0;
     let fired = false;
     const off = window.__bus.on("enemy:windup", () => (fired = true));
     for (let i = 0; i < 10 && !fired; i++) brain.update(1 / 60, target, 1);
@@ -117,62 +120,86 @@ export function run() {
     return eq(fired, true);
   });
 
-  check("前搖中視線被切斷 → 中止開火", () => {
+  check("前搖中柯基跑出範圍 → 這一啄落空", () => {
     const c = new Collision();
     const e = fakeEnemy(0, 0);
-    const target = { x: 0, y: 0, z: 6 };
+    const target = close();
     faceToward(e, target.x, target.z);
     const brain = makeBrain(e, c);
-    brain.fireCd = 0;
+    brain.attackCd = 0;
     brain.update(1 / 60, target, 1); // 進入 windup
     if (brain.state !== "windup") return `預期 windup,實際 ${brain.state}`;
-    c.addStatic(0, 3, 2); // 玩家躲到掩體後
-    const t = runUntilFire(brain, target, 120);
-    return t === null ? eq(brain.state, "chase") : `視線已斷仍然開火於 ${t}s`;
+    const fled = { x: 0, y: 0, z: E.peckReach + 1.5 }; // 前搖中逃開(仍在視野內)
+    let missed = false;
+    const off = window.__bus.on("enemy:attackMiss", () => (missed = true));
+    const t = runUntilAttack(brain, fled, Math.ceil(E.windupTime * 60) + 2);
+    off();
+    if (t !== null) return `已經逃開仍被啄中(${t.toFixed(2)}s)`;
+    return eq(missed, true);
   });
 
-  check("隔著石頭全程不開火", () => {
+  check("前搖中視線被切斷 → 中止啄擊", () => {
     const c = new Collision();
-    c.addStatic(0, 3, 2);
     const e = fakeEnemy(0, 0);
-    const target = { x: 0, y: 0, z: 6 };
+    const target = close();
     faceToward(e, target.x, target.z);
     const brain = makeBrain(e, c);
-    brain.fireCd = 0;
-    return eq(runUntilFire(brain, target, 300), null);
+    brain.attackCd = 0;
+    brain.update(1 / 60, target, 1); // 進入 windup
+    if (brain.state !== "windup") return `預期 windup,實際 ${brain.state}`;
+    c.addStatic(0, target.z / 2, 0.5); // 中間冒出掩體
+    const t = runUntilAttack(brain, target, 120);
+    return t === null ? eq(brain.state, "chase") : `視線已斷仍然啄中於 ${t}s`;
   });
 
-  check("沒對準目標時不會舉槍（杜絕瞬間轉身開槍）", () => {
+  check("隔著石頭全程不出手", () => {
+    const c = new Collision();
+    c.addStatic(0, 0.8, 0.5);
+    const e = fakeEnemy(0, 0);
+    const target = close();
+    faceToward(e, target.x, target.z);
+    const brain = makeBrain(e, c);
+    brain.attackCd = 0;
+    return eq(runUntilAttack(brain, target, 300), null);
+  });
+
+  check("沒對準目標時不會出手（杜絕瞬間轉身就啄）", () => {
     const c = new Collision();
     const e = fakeEnemy(0, 0, 0); // 面向 +z
-    const target = { x: 6, y: 0, z: 0 }; // 正右方,偏 90°
+    const target = { x: E.attackRange * 0.8, y: 0, z: 0 }; // 正右方,偏 90°
     const brain = makeBrain(e, c);
-    brain.fireCd = 0;
+    brain.attackCd = 0;
     brain.update(1 / 60, target, 1);
     return eq(brain.state === "windup", false);
   });
 
-  check("射程內才開火,超出射程只會接近", () => {
+  check("距離外不出手,而是一路追過去(不會停在遠處)", () => {
     const c = new Collision();
-    const far = E.fireRange + 4;
     const e = fakeEnemy(0, 0);
-    const target = { x: 0, y: 0, z: far };
+    const target = { x: 0, y: 0, z: 6 };
     faceToward(e, target.x, target.z);
     const brain = makeBrain(e, c);
-    brain.fireCd = 0;
-    const intent = brain.update(1 / 60, target, 1);
-    if (intent.fire) return "超出射程卻開火";
-    return intent.move ? true : "超出射程應該要接近玩家";
+    brain.attackCd = 0;
+    // 模擬移動:每一步照意圖前進
+    for (let i = 0; i < 120; i++) {
+      const intent = brain.update(1 / 60, target, 1);
+      if (intent.attack) return "還沒追到就啄中";
+      if (intent.move) { e.pos.x += intent.move.x / 60; e.pos.z += intent.move.z / 60; }
+      if (brain.state === "windup") break;
+    }
+    const d = Math.hypot(target.x - e.pos.x, target.z - e.pos.z);
+    return d < E.attackRange ? true : `追了 2 秒還在 ${d.toFixed(2)} 外`;
   });
 
-  check("開火距離不超過畫面下緣（離屏攻擊防護）", () => {
-    // 相機 pitch 40° / 距離 30 / 垂直 FOV 38° → 玩家前方可見約 11.4 單位
+  check("啄擊是近戰:攻擊距離遠小於畫面可見範圍(不會有螢幕外挨打)", () => {
     const camH = 30 * Math.sin((40 * Math.PI) / 180);
     const nearEdge = camH / Math.tan(((40 + 19) * Math.PI) / 180);
     const visibleAhead = 30 * Math.cos((40 * Math.PI) / 180) - nearEdge;
-    return E.fireRange <= visibleAhead
-      ? true
-      : `fireRange ${E.fireRange} 超過可見範圍 ${visibleAhead.toFixed(1)}`;
+    return E.peckReach < visibleAhead / 3 ? true : `peckReach ${E.peckReach} 太遠`;
+  });
+
+  check("推開距離小於攻擊距離(否則鴨子永遠碰不到柯基)", () => {
+    return E.playerPushDist < E.attackRange ? true : `playerPushDist ${E.playerPushDist} ≥ attackRange ${E.attackRange}`;
   });
 
   suite("EnemyBrain 狀態轉移");

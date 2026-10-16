@@ -9,8 +9,14 @@ export class Input {
 
     addEventListener("keydown", (e) => {
       const k = e.key.toLowerCase();
+      // 空白鍵(挖)與 Tab(圖鑑)不要捲動頁面或移動焦點
+      if (k === " " || k === "tab") e.preventDefault();
       if (!e.repeat) {
         if (k === "e") bus.emit("input:pickup");
+        else if (k === " ") bus.emit("input:dig");
+        else if (k === "q") bus.emit("input:sniff");
+        else if (k === "tab") bus.emit("input:collection");
+        else if (k === "escape") bus.emit("input:close");
         else if (k === "m") bus.emit("input:bgm");
         else if (e.code === "Digit1") bus.emit("input:slot", 0);
         else if (e.code === "Digit2") bus.emit("input:slot", 1);
@@ -25,6 +31,12 @@ export class Input {
       this.mouse.y = -(e.clientY / innerHeight) * 2 + 1;
       this.mouse.has = true;
     });
+
+    // 滾輪縮放鏡頭(不讓頁面跟著捲動)
+    dom.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      if (e.deltaY) bus.emit("input:zoom", Math.sign(e.deltaY));
+    }, { passive: false });
 
     dom.addEventListener("mousedown", (e) => {
       if (e.button === 0) bus.emit("input:fire");

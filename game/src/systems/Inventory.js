@@ -3,9 +3,10 @@ import { bus, log } from "../core/EventBus.js";
 
 // 快捷欄 3 格。E 撿最近的、1-3 直接使用該格。
 export class Inventory {
-  constructor(player, spawner) {
+  constructor(player, spawner, digSpots) {
     this.player = player;
     this.spawner = spawner;
+    this.digSpots = digSpots;
     this.slots = Array(BAL.hotbarSize).fill(null);
     this.index = 0;
 
@@ -13,11 +14,17 @@ export class Inventory {
     bus.on("input:slot", (i) => this.use(i));
   }
 
+  // E:附近有道具就撿;沒有的話,附近有土堆就挖
   pickup() {
-    if (!this.player.alive) return;
+    if (!this.player.alive || this.player.dig || this.player.sniff) return;
     const item = this.spawner.nearestItem(this.player.pos, BAL.items.pickupRange);
     if (!item) {
-      log("Nothing nearby to pick up", "info");
+      const spot = this.digSpots?.nearest(this.player.pos, BAL.items.digRange + 0.8);
+      if (spot) {
+        this.digSpots.dig(spot, this.player);
+        return;
+      }
+      log("Nothing here… press Q to sniff for buried treasure :nose:", "info");
       return;
     }
     this.put(item.type);

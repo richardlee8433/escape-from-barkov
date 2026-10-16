@@ -3,47 +3,73 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 
 const MODEL_BASE = "../proto/assets/models/";
+const BLENDER_BASE = "./assets/models/";
 
-// Kenney 環境模型（CC0），與 proto 共用同一份檔案
-const KENNEY = [
-  "tree_pineRoundA", "tree_pineRoundB", "tree_pineRoundC", "tree_pineRoundD",
-  "tree_pineSmallA", "tree_pineSmallB",
-  "stone_largeA", "stone_largeB", "stone_largeC", "stone_largeD",
-  "stone_smallA", "stone_smallC", "stone_smallE", "stone_tallB", "stone_tallD",
-  "fence_simple", "fence_gate", "bridge_wood",
-  "grass_leafs", "plant_bushSmall", "plant_bushLarge",
-  "mushroom_red", "log", "stump_round",
-  "box", "box-large", "box-open", "barrel", "chest",
+// Blender 程序化資產(tools/blender/ 產生,烘焙了顏色 × AO + 法線貼圖)
+const BLENDER = [
+  "cottage", "well",
+  "tree_conifer_a", "tree_conifer_b", "tree_round_a", "tree_round_b",
+  "rock_a", "rock_b", "rock_c",
+  "bush", "bush_flower", "stump", "log",
+  "fence", "gate", "bridge",
+  "barrel", "crate", "chest",
+  "reeds", "waterweed", "lilypad", "lily", "dirt_pile",
+  // 角色:帶骨架與動畫(柯基 Idle/Walk/Run/Dig/Proud,鴨子 Idle/Walk/Run/Peck)
+  "corgi", "duck",
 ];
 
-// 角色模型（CC-BY 4.0）與拾取物（Kenney CC0,各包貼圖同名故分資料夾）
+// 拾取物與子彈（Kenney CC0,各包貼圖同名故分資料夾）
 const SPECIAL = {
-  corgi: "../luug_corgi_tales_of_arcadia.glb",
-  duck: MODEL_BASE + "voxel_duck.glb",
   pickup_heart: MODEL_BASE + "pickups-platformer/heart.glb",
   pickup_ammo: MODEL_BASE + "pickups-blaster/clip-large.glb",
   bullet: MODEL_BASE + "pickups-blaster/bullet-foam.glb",
 };
 
-// Kenney 樹葉是偏藍綠色，改成參考圖的暖黃綠
-const FOLIAGE_GREENS = [new THREE.Color(0x649c3d), new THREE.Color(0x77b04a), new THREE.Color(0x86bd58)];
-function warmifyFoliage(mat) {
-  const c = mat.color;
-  if (c && c.g > c.r && c.b > c.r * 1.15) {
-    const lum = c.r * 0.3 + c.g * 0.6 + c.b * 0.1;
-    mat.color = FOLIAGE_GREENS[lum > 0.45 ? 2 : lum > 0.28 ? 1 : 0].clone();
-  }
+// 樹葉面片(trees.py):透明葉叢貼圖用 alpha test 切出葉形(陰影也跟著是一片片的葉影),
+// 雙面顯示。法線在 Blender 裡已改成「從樹冠中心往外」,背面不要再翻轉法線,
+// 否則轉到背面的葉片會突然變暗,整個樹冠斑斑駁駁。
+const NORMAL_NO_FLIP = THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", "");
+export function setupLeaves(m) {
+  m.transparent = false;
+  m.depthWrite = true;
+  m.alphaTest = 0.45;
+  m.side = THREE.DoubleSide;
+  m.metalness = 0;
+  m.roughness = 0.85;
+  if (m.map) m.map.anisotropy = 4;
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <normal_fragment_begin>", NORMAL_NO_FLIP)
+      // 遠處的 mipmap 會把葉緣的透明度平均掉,alpha test 後葉子越縮越小、最後整棵樹變光禿。
+      // 依 mip 層級把 alpha 拉高,遠近看起來一樣茂密。
+      .replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+         vec2 texel = vMapUv * 512.0;
+         float lod = max(0.0, log2(max(length(dFdx(texel)), length(dFdy(texel)))));
+         diffuseColor.a *= 1.0 + lod * 0.35;`
+      );
+  };
+  m.customProgramCacheKey = () => "leaves";
 }
 
 export class Assets {
   constructor() {
-    this.lib = new Map(); // name → { scene, size }
+    this.lib = new Map(); // name → { scene, size, skinned, clips }
     this.loader = new GLTFLoader();
+    // GLB 內嵌的貼圖改用 <img> 載入(TextureLoader),不用 ImageBitmapLoader:
+    // 後者是 fetch(blob:),在限制 fetch 來源的主機上會被擋,模型就沒有貼圖。
+    this.loader.register((parser) => {
+      parser.textureLoader = new THREE.TextureLoader(parser.options.manager);
+      parser.textureLoader.setCrossOrigin(parser.options.crossOrigin);
+      parser.textureLoader.setRequestHeader(parser.options.requestHeader);
+      return { name: "barkov_img_textures" };
+    });
   }
 
   async loadAll(onProgress) {
     const entries = [
-      ...KENNEY.map((n) => [n, MODEL_BASE + n + ".glb"]),
+      ...BLENDER.map((n) => [n, BLENDER_BASE + n + ".glb"]),
       ...Object.entries(SPECIAL),
     ];
     let done = 0;
@@ -54,47 +80,73 @@ export class Assets {
     );
   }
 
+  // 取得 glTF。一般網站直接載 .glb;
+  // 「.glb.json」是給限制較嚴的主機(claude.ai Artifact)的包裝:整個 GLB 以 base64 放在 JSON 裡。
+  // 那種主機不提供 .glb 類型,也不准 fetch data: 網址,所以在這裡自己解碼成 ArrayBuffer 再解析。
+  _fetchGltf(url, onLoad, onError) {
+    if (!url.endsWith(".glb.json")) return this.loader.load(url, onLoad, undefined, onError);
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(({ glb }) => {
+        const bin = atob(glb);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        this.loader.parse(bytes.buffer, url.slice(0, url.lastIndexOf("/") + 1), onLoad, onError);
+      })
+      .catch(onError);
+  }
+
   _load(name, url) {
-    const recolor = /^(tree_|plant_|grass)/.test(name);
+    const baked = BLENDER.includes(name);
     return new Promise((resolve, reject) => {
-      this.loader.load(url, (gltf) => {
+      this._fetchGltf(url, (gltf) => {
         const root = gltf.scene;
         root.traverse((o) => {
           if (o.isMesh) {
             o.castShadow = true;
             o.receiveShadow = true;
-            if (o.material) {
+            if (o.material && baked && o.material.name.endsWith("_leaves")) {
+              setupLeaves(o.material);
+            } else if (o.material && baked) {
+              // 烘焙貼圖已含 AO;只補上斜角取樣讓俯視角下的貼圖不糊
+              for (const t of [o.material.map, o.material.normalMap]) if (t) t.anisotropy = 8;
+              o.material.metalness = 0;
+              // 柯基的頂點色是「毛長」資料(給 Fur.js),不是顏色,不能乘到貼圖上
+              o.material.vertexColors = false;
+            } else if (o.material) {
               o.material.roughness = 1;
               o.material.metalness = 0;
-              if (recolor) warmifyFoliage(o.material);
             }
           }
         });
-        // 鴨子模型原始朝向是 -Z，包一層讓「正面 = +Z」，與 AI 的 FOV 方向一致
-        let scene = root;
-        if (name === "duck") {
-          scene = new THREE.Group();
-          root.rotation.y = Math.PI;
-          scene.add(root);
-        }
+        const scene = root;
         let skinned = false;
         scene.traverse((o) => { if (o.isSkinnedMesh) skinned = true; });
         const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
-        this.lib.set(name, { scene, size, skinned });
+        this.lib.set(name, { scene, size, skinned, clips: gltf.animations });
         resolve();
-      }, undefined, reject);
+      }, (err) => reject(new Error(`${name}: ${err?.message || err}`)));
     });
   }
 
+  // 模型附帶的動畫片段(角色用)
+  clips(name) {
+    return this.lib.get(name)?.clips ?? [];
+  }
+
   // 產生一個實例：縮放到目標尺寸、腳底貼齊 y=0。
-  // dim: "y" 按高度縮放；"max" 按最大邊縮放（給橋、木頭這種扁長模型）
+  // dim: "y" 按高度縮放；"max" 按最大邊縮放（給橋、木頭這種扁長模型）；
+  //      "scale" 直接把 target 當倍率(Blender 資產以公尺建模,原尺寸就對)
   // center: 水平置中（角色用；Kenney 地景件本身已對齊原點，不需要）
   instantiate(name, target, { dim = "y", center = false } = {}) {
     const rec = this.lib.get(name);
     if (!rec) throw new Error(`Model not loaded: ${name}`);
     // SkinnedMesh 用一般 clone 會讓骨架指向原始骨骼(隱形),要用 SkeletonUtils
     const obj = rec.skinned ? SkeletonUtils.clone(rec.scene) : rec.scene.clone(true);
-    const ref = dim === "max" ? Math.max(rec.size.x, rec.size.y, rec.size.z) : rec.size.y;
+    const ref = dim === "max" ? Math.max(rec.size.x, rec.size.y, rec.size.z) : dim === "scale" ? 1 : rec.size.y;
     obj.scale.setScalar(target / ref);
     const box = new THREE.Box3().setFromObject(obj);
     const c = box.getCenter(new THREE.Vector3());
