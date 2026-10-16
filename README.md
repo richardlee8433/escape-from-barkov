@@ -31,6 +31,8 @@ Then open **http://localhost:5173/** in your browser; the root redirects to the 
 
 To publish as a static site, run `node tools/build-web.mjs`: `dist/` is self-contained (upload it anywhere, e.g. GitHub Pages), and `dist/artifact/` is the claude.ai Artifact variant (models converted from `.glb` to equivalent embedded glTF JSON).
 
+To test on **itch.io**, run `node tools/build-itch.mjs`. It runs the web build and writes `dist-itch/dig-corgi-dig-<version>-itch.zip` (about 11 MB, `index.html` at the top level). On itch.io: create a project with *Kind of project* = HTML, upload the zip, tick *This file will be played in the browser*, set the viewport to 1280 × 720 and enable the *Fullscreen button*. Saves (backpack, Treasure Book, cottage, settings) live in the player's browser.
+
 > The legacy prototype (v0.3.5, single-file) is at `/v0.3.5.html`. The visual style prototype is at `/proto/`.
 > Deterministic gameplay tests run in the browser at `/game/tests/run.html`.
 
