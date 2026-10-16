@@ -13,21 +13,31 @@
     #title-screen {
       position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 14px;
-      background: radial-gradient(ellipse at 50% 40%, #3a2f1e 0%, #1c1610 70%);
+      /* 首頁背景圖:中間標題與按鈕的地方壓一層暖色暗角,圖再亮也搶不走字 */
+      background:
+        radial-gradient(ellipse 44% 46% at 50% 47%, rgba(26, 18, 9, .80) 0%, rgba(26, 18, 9, .62) 55%, rgba(26, 18, 9, .18) 100%),
+        linear-gradient(rgba(22, 15, 8, .22), rgba(22, 15, 8, .38)),
+        url("./assets/ui/title_bg.webp") center / cover no-repeat,
+        #1c1610;
       color: #f0e3c8;
     }
-    #title-screen h1 { font-size: 42px; margin: 0; letter-spacing: 2px; text-shadow: 0 3px 0 #00000055; }
-    #title-screen .sub { margin-top: -6px; opacity: .8; font-size: 16px; letter-spacing: .5px; }
-    #title-screen .ver { opacity: .55; font-size: 13px; margin-bottom: 14px; }
+    #title-screen h1 { font-size: clamp(28px, 8vw, 42px); margin: 0; padding: 0 16px; text-align: center; letter-spacing: 2px; text-shadow: 0 3px 0 #00000088, 0 0 24px #000000aa; }
+    #title-screen .sub, #title-screen .ver { padding: 0 16px; text-align: center; }
+    #title-screen .sub { margin-top: -6px; opacity: .9; font-size: 16px; letter-spacing: .5px; text-shadow: 0 2px 6px #000000cc; }
+    #title-screen .ver { opacity: .7; font-size: 13px; margin-bottom: 14px; text-shadow: 0 1px 4px #000000cc; }
     #title-screen button {
       font-size: 17px; padding: 10px 34px; border-radius: 10px; border: 1px solid #8a6f4a;
-      background: #5b4630; color: #ffe9bd; cursor: pointer;
+      background: #5b4630; color: #ffe9bd; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
     }
     #title-screen button:hover { background: #6d5539; }
     /* ---- 媽媽的信(開始遊戲時,順便當載入畫面) ---- */
     #letter {
       position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center;
-      background: radial-gradient(ellipse at 50% 40%, #3a2f1e 0%, #15100a 75%); padding: 16px; box-sizing: border-box;
+      background:
+        linear-gradient(rgba(21, 16, 10, .78), rgba(21, 16, 10, .86)),
+        url("./assets/ui/title_bg.webp") center / cover no-repeat,
+        #15100a;
+      padding: 16px; box-sizing: border-box;
     }
     #letter .paper {
       position: relative; width: min(560px, 100%); max-height: 100%; overflow-y: auto; box-sizing: border-box;
@@ -241,7 +251,7 @@
   <div id="title-screen">
     <h1>🐕 Dig, Corgi, Dig!</h1>
     <div class="sub">a treasure hunt in the village of Barkov</div>
-    <div class="ver">v0.12.2 — a letter from Mom, and a good loud bark</div>
+    <div class="ver">v0.12.3 — a letter from Mom, and a good loud bark</div>
     <button id="btn-start">Start Game</button>
     <button id="btn-howto">How to Play</button>
   </div>
