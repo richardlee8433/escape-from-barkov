@@ -153,14 +153,16 @@ export class DigSpots {
     const tier = game.success ? spot.tier : 0;
     const treasure = pickTreasure(tier);
     const perfect = game.perfect;
+    // 普通的材料(木板、釘子、稻草…)修房子要用很多,一次挖出兩個
+    const qty = game.success && tier === 0 ? 2 : 1;
     const { isNew, entry } = this.collection.add(treasure.id, perfect);
     player.endDig(game.success);
     bus.emit("dig:found", {
-      x: spot.x, z: spot.z, spot, treasure, tier, isNew, perfect, success: game.success,
+      x: spot.x, z: spot.z, spot, treasure, tier, qty, isNew, perfect, success: game.success,
       count: entry ? entry.count : 1, found: this.collection.found, total: this.collection.total,
     });
     const r = RARITIES[tier].name;
     if (!game.success) log(`It slipped deeper… grabbed a ${treasure.name} instead`, "info");
-    else log(`Dug up ${treasure.name} (${r})${perfect ? " — perfect dig!" : ""}${isNew ? " NEW!" : ""}`, "ok");
+    else log(`Dug up ${treasure.name}${qty > 1 ? ` ×${qty}` : ""} (${r})${perfect ? " — perfect dig!" : ""}${isNew ? " NEW!" : ""}`, "ok");
   }
 }

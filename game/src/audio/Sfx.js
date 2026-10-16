@@ -49,5 +49,12 @@ export class Sfx {
       notes.forEach((f, i) => setTimeout(() => beep(f, 0.12, "triangle", 0.07), i * 90));
     });
     bus.on("victory", () => { beep(660, 0.12); beep(880, 0.12); beep(1320, 0.25); });
+    // 家:進出門、敲敲打打、修好、擺東西
+    bus.on("exit:home", () => [523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, 0.12, "triangle", 0.06), i * 110)));
+    bus.on("home:leave", () => [784, 659].forEach((f, i) => setTimeout(() => beep(f, 0.1, "triangle", 0.05), i * 110)));
+    bus.on("home:working", () => [0, 260, 520, 780, 1040].forEach((d) => setTimeout(() => beep(210, 0.05, "square", 0.045), d)));
+    bus.on("home:repaired", () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.13, "triangle", 0.07), i * 90)));
+    bus.on("home:need", () => beep(300, 0.14, "sine", 0.05));
+    bus.on("home:display", ({ treasureId }) => (treasureId ? beep(988, 0.08, "triangle", 0.06) : beep(523, 0.08, "triangle", 0.05)));
   }
 }

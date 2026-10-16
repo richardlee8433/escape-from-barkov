@@ -7,11 +7,12 @@ export class Inventory {
     this.player = player;
     this.backpack = backpack;
     this.digSpots = digSpots;
+    this.enabled = true; // 在家裡時關掉(E 交給 Home)
     bus.on("input:pickup", () => this.pickup());
   }
 
   pickup() {
-    if (!this.player.alive || this.player.dig || this.player.sniff) return;
+    if (!this.enabled || !this.player.alive || this.player.dig || this.player.sniff) return;
     const item = this.backpack.nearestGround(this.player.pos, BAL.items.pickupRange);
     if (item) {
       this.backpack.pickup(item);

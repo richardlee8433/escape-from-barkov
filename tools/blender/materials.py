@@ -252,6 +252,31 @@ def mouth(nb):
     return dict(color=base, height=n, bump=0.15, rough=0.35, ao=0.5)
 
 
+@material("cloth")
+def cloth(nb):
+    # 布料(窗簾、地毯、狗窩墊):顏色由頂點色決定,材質只加細密的編織紋與一點起伏
+    o = nb.coord("Object")
+    weave = nb.wave(nb.mapping(o, scale=(1, 1, 1)), 90.0, 0.5, 1.0, "X")
+    weave2 = nb.wave(nb.mapping(o, scale=(1, 1, 1)), 90.0, 0.5, 1.0, "Y")
+    w = nb.math("MULTIPLY", nb.math("ADD", weave, weave2), 0.5)
+    fuzz = nb.noise(o, 60, 3, 0.6)
+    shade = nb.ramp(nb.math("ADD", nb.math("MULTIPLY", w, 0.5), nb.math("MULTIPLY", fuzz, 0.5)),
+                    [(0.2, (0.84, 0.84, 0.84)), (0.8, (1.0, 1.0, 1.0))])
+    return dict(color=nb.mul(nb.attr("col"), shade), height=nb.math("ADD", w, fuzz), bump=0.25,
+                bump_dist=0.004, rough=0.95, ao=0.85)
+
+
+@material("window_glass")
+def window_glass(nb):
+    # 室內看出去的窗玻璃:白天的天光,上亮下稍暗
+    o = nb.coord("Object")
+    n = nb.noise(o, 4, 2, 0.5)
+    z = nb.sep(o)["Z"]
+    base = nb.ramp(nb.math("ADD", nb.math("MULTIPLY", z, 0.5), nb.math("MULTIPLY", n, 0.2)),
+                   [(0.4, srgb("#b9d3d8")), (1.2, srgb("#eef6f2"))])
+    return dict(color=base, height=None, rough=0.1, ao=0.2)
+
+
 @material("beak")
 def beak(nb):
     o = nb.coord("Object")

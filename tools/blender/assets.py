@@ -565,6 +565,10 @@ def build_dirt_pile(name, seed):
 # ================================================================ 清單
 
 from trees import add_leaves, build_broadleaf, build_conifer, build_shrub  # noqa: E402
+from home import (build_home_bed, build_home_debris, build_home_fireplace, build_home_fireplace_broken,  # noqa: E402
+                  build_home_floor, build_home_floor_broken, build_home_rug, build_home_shelf,
+                  build_home_shelf_broken, build_home_shell, build_home_table, build_home_table_broken,
+                  build_home_window, build_home_window_broken)
 from characters import build_corgi, build_duck, rig_corgi, rig_duck  # noqa: E402
 
 ASSETS = {
@@ -598,4 +602,19 @@ ASSETS = {
     "lilypad": (build_lilypad, dict(seed=93), 256, 0.1, None, {"ground": False}),
     "lily": (build_lilypad, dict(seed=94, flower=True), 512, 0.1, None, {"ground": False}),
     "dirt_pile": (build_dirt_pile, dict(seed=95), 512, 0.3),
+    # 柯基的家(室內):可以修的東西各有壞的 / 修好的兩個版本,見 home.py
+    "home_shell": (build_home_shell, dict(seed=101), 2048, 0.8),
+    "home_floor": (build_home_floor, dict(seed=102), 2048, 0.5),
+    "home_floor_broken": (build_home_floor_broken, dict(seed=102), 2048, 0.5),
+    "home_fireplace": (build_home_fireplace, dict(seed=103), 1024, 0.6),
+    "home_fireplace_broken": (build_home_fireplace_broken, dict(seed=103), 1024, 0.6),
+    "home_window": (build_home_window, dict(seed=104), 1024, 0.4),
+    "home_window_broken": (build_home_window_broken, dict(seed=104), 1024, 0.4),
+    "home_shelf": (build_home_shelf, dict(seed=105), 512, 0.3),
+    "home_shelf_broken": (build_home_shelf_broken, dict(seed=105), 512, 0.3),
+    "home_table": (build_home_table, dict(seed=106), 512, 0.4),
+    "home_table_broken": (build_home_table_broken, dict(seed=106), 512, 0.4),
+    "home_bed": (build_home_bed, dict(seed=107), 512, 0.3),
+    "home_rug": (build_home_rug, dict(seed=108), 1024, 0.3),
+    "home_debris": (build_home_debris, dict(seed=109), 512, 0.3),
 }

@@ -1,12 +1,18 @@
 import { BAL } from "../config/balance.js";
 import { bus } from "../core/EventBus.js";
 
-// 出口:走進大門範圍出現提示,按 F 直接撤離。
+// 回家的大門:走進範圍出現提示,按 F 回到柯基的小屋(見 Home)。
 export class ExitSystem {
   constructor(exitPos, player, input) {
     this.exitPos = exitPos;
     this.player = player;
     this.input = input;
+    this.done = false;
+    this.nearby = false;
+  }
+
+  // 從家裡回來:可以再按 F 回家
+  reset() {
     this.done = false;
     this.nearby = false;
   }
@@ -21,13 +27,13 @@ export class ExitSystem {
 
     if (near !== this.nearby) {
       this.nearby = near;
-      bus.emit(near ? "tip:show" : "tip:hide", { msg: "Press F to extract 🏁" });
+      bus.emit(near ? "tip:show" : "tip:hide", { msg: "Press F to go home 🏡" });
     }
 
     if (near && this.input.isDown("f")) {
       this.done = true;
       bus.emit("tip:hide");
-      bus.emit("victory", { x: this.exitPos.x, z: this.exitPos.z });
+      bus.emit("exit:home", { x: this.exitPos.x, z: this.exitPos.z });
     }
   }
 }

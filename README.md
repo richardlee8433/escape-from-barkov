@@ -2,7 +2,7 @@
 
 *(formerly Escape from Barkov)*
 
-A cozy top-down treasure hunt: a corgi sniffs out and digs up buried treasure in a village full of mischievous ducks, then heads for the exit — inspired by the look and feel of *Escape from Duckov*, minus the guns. Built with [Three.js](https://threejs.org/), no game engine, no bundler.
+A cozy top-down treasure hunt: a corgi sniffs out and digs up buried treasure in a village full of mischievous ducks, then heads home to fix up a run-down cottage with what it found — inspired by the look and feel of *Escape from Duckov*, minus the guns. Built with [Three.js](https://threejs.org/), no game engine, no bundler.
 
 | In game (v0.6) | Same assets rendered in Blender Cycles |
 |---|---|
@@ -15,6 +15,10 @@ A cozy top-down treasure hunt: a corgi sniffs out and digs up buried treasure in
 | Ducks chase and peck (v0.8) | Reeds, waterweed and lilies (v0.8) |
 |---|---|
 | ![chase](docs/ingame_chase.jpg) | ![plants](docs/ingame_plants.jpg) |
+
+| Home, as you find it (v0.11) | Home, fixed up and decorated (v0.11) |
+|---|---|
+| ![home broken](docs/home_broken.jpg) | ![home fixed](docs/home_fixed.jpg) |
 
 ## Play
 
@@ -42,10 +46,13 @@ To publish as a static site, run `node tools/build-web.mjs`: `dist/` is self-con
 | `E` / `Space` / click (while digging) | Dig when the needle is in the green zone (gold = perfect) |
 | `B` | Backpack |
 | `Tab` | Treasure Book |
-| `F` | Extract at the exit gate |
+| `F` | Go home at the HOME gate |
+| `E` (at home) | Repair what your nose points at · decorate a repaired shelf, mantel, sill or table · go back out at the door |
 | `M` | Toggle music |
 
-**Goal:** fill your backpack with treasure, then make your way from the west spawn to the EXIT gate on the east side of the map, cross the ravine bridge, and press `F` to extract. There is no health, no weapon and no money. Ducks are mischievous rather than deadly: they chase you, and a peck (watch for the wind-up — a ring on the ground, the duck leans back) knocks you back and makes you drop one thing from your backpack, usually something common. It lands nearby; press `E` to pick it back up. A duck that landed a peck waddles off happily for a while. Treasure is buried out of sight — the ground looks like any other. Press `Q` and the corgi sniffs the ground: scent wisps drift in from the direction of the nearest treasure, and their color and count tell how close it is (cold → faint → warm → hot → *right here*). Once the nose says *right here*, press `E` and the corgi digs in front of its nose: the hole opens up, a dirt pile grows beside it and clods fly with every good shovel, and the treasure finally rises out of the hole. Digging is a timing minigame, and rarer treasures (Common → Uncommon → Rare → Epic → Legendary) are buried deeper, with a faster needle and a narrower zone. Three misses and the treasure slips away (you grab something common instead); moving or getting pecked by a duck interrupts the dig. Every find goes into your backpack (`B`, stacked by kind and sorted by rarity) and is recorded in the Treasure Book (`Tab`); both are saved in your browser. The corgi shows off each find to the camera. A new treasure is buried somewhere else after each find, and dug holes fill back in after a while. Ducks get faster and peck sooner the longer you play.
+**Goal:** fill your backpack with treasure, then make your way from the west spawn to the HOME gate on the east side of the map, cross the ravine bridge, and press `F` to go home. There is no health, no weapon and no money. Ducks are mischievous rather than deadly: they chase you, and a peck (watch for the wind-up — a ring on the ground, the duck leans back) knocks you back and makes you drop one thing from your backpack, usually something common. It lands nearby; press `E` to pick it back up. A duck that landed a peck waddles off happily for a while. Treasure is buried out of sight — the ground looks like any other. Press `Q` and the corgi sniffs the ground: scent wisps drift in from the direction of the nearest treasure, and their color and count tell how close it is (cold → faint → warm → hot → *right here*). Once the nose says *right here*, press `E` and the corgi digs in front of its nose: the hole opens up, a dirt pile grows beside it and clods fly with every good shovel, and the treasure finally rises out of the hole. Digging is a timing minigame, and rarer treasures (Common → Uncommon → Rare → Epic → Legendary) are buried deeper, with a faster needle and a narrower zone. Three misses and the treasure slips away (you grab something common instead); moving or getting pecked by a duck interrupts the dig. Every find goes into your backpack (`B`, stacked by kind and sorted by rarity) and is recorded in the Treasure Book (`Tab`); both are saved in your browser. The corgi shows off each find to the camera. A new treasure is buried somewhere else after each find, and dug holes fill back in after a while. Ducks get faster and peck sooner the longer you play.
+
+**Home:** the corgi's cottage starts out run-down — holes in the roof with sunbeams and dust falling through, a broken floor you have to walk around, a cold, half-collapsed fireplace, a boarded-up window, a fallen shelf, a tipped-over table, and no bed or rug. Walk up to something (the hammer markers show what can be fixed) and the tip says what it needs — for example two Old Planks and a Bent Nail for the floor. With the materials in your backpack, press `E`: the corgi gets to work, the materials are used up, the broken model is swapped for the repaired one in a puff of dust, and the room gets a little warmer and brighter. Mending the roof closes the sunbeams; lighting the fireplace adds flickering firelight. Repaired shelves, the mantel, the window sill and the table become display spots: press `E` to pick treasures from your backpack to show off (↩ puts one back). Repairs and displays are saved in your browser. The door takes you back out to dig. Common finds (planks, nails, straw, pebbles, bones) come out two at a time, because the cottage needs a lot of them.
 
 ## Project structure
 
@@ -54,15 +61,15 @@ game/            the current game (modular rebuild)
   index.html     UI shell
   assets/models/ Environment GLBs generated by tools/blender (baked color×AO + normal maps)
   src/
-    config/      All balance numbers in one file (balance.js), treasure list & rarities (treasures.js)
+    config/      All balance numbers in one file (balance.js), treasure list & rarities (treasures.js), home stations & display spots (home.js)
     core/        Event bus, fixed-timestep game loop, input, asset loader
     render/      Post-processing (tilt-shift, color grade, vignette, bloom), camera rig, animation player
-    world/       Painted ground, water, chunked instanced grass & flowers, water plants, world builder
+    world/       Painted ground, water, chunked instanced grass & flowers, water plants, world builder, the cottage interior (HomeScene)
     entities/    Player, Enemy
     ai/          Enemy state machine (patrol / chase / search) with a real FOV
-    systems/     Collision, duck pecks, spawner, backpack, dig spots + dig minigame, treasure collection, exit
+    systems/     Collision, duck pecks, spawner, backpack, dig spots + dig minigame, treasure collection, home gate, home repairs & displays
     audio/       Synthesized SFX + BGM
-    ui/          HUD (event-driven), screens, dig bar & reveal card, backpack & Treasure Book panels
+    ui/          HUD (event-driven), screens, dig bar & reveal card, backpack, Treasure Book & display panels
 tools/blender/   Procedural asset pipeline (Python + Blender): model → bake → GLB
 proto/           Duckov-style visual prototype + shared 3D assets
 index.html       Redirects to game/ (the current version)
@@ -93,7 +100,7 @@ Water plants — reeds with cattails along the banks, waterweed swaying on the s
 
 ## Environment assets (Blender pipeline)
 
-Every environment model — thatched cottages, well, spruce & broadleaf trees, shrubs, mossy rocks, fence, gate, bridge, barrels, crates, chest, stumps, logs — is generated **procedurally in Blender** by `tools/blender/`. Each asset is modeled from code, shaded with procedural node materials (straw, plaster, timber, stone, bark, foliage…), then Cycles bakes **color × ambient occlusion** and a **tangent-space normal map** into textures, and the result is exported as GLB. The game gets near-offline-render shading at real-time cost.
+Every environment model — thatched cottages, the cottage interior (broken and repaired versions of every piece), well, spruce & broadleaf trees, shrubs, mossy rocks, fence, gate, bridge, barrels, crates, chest, stumps, logs — is generated **procedurally in Blender** by `tools/blender/`. Each asset is modeled from code, shaded with procedural node materials (straw, plaster, timber, stone, bark, foliage…), then Cycles bakes **color × ambient occlusion** and a **tangent-space normal map** into textures, and the result is exported as GLB. The game gets near-offline-render shading at real-time cost.
 
 ```bash
 pip install bpy==5.2.2                      # Blender as a Python module (Python 3.13)

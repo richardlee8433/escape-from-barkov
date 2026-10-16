@@ -255,6 +255,19 @@ export function run() {
 
   suite("介面圖示");
 
+  check("挖到普通材料一次給兩個(修房子要用很多),稀有的給一個;失手只給一個", () => {
+    const got = [];
+    const off = bus.on("dig:found", (e) => got.push(e.qty));
+    for (const [tier, success] of [[0, true], [2, true], [3, false]]) {
+      const ds = field(0, 0);
+      ds.spots[0].tier = tier;
+      ds.active = { spot: ds.spots[0], game: { success, perfect: false }, player: corgi() };
+      ds._finish();
+    }
+    off();
+    return eq(got.join(","), "2,1,1");
+  });
+
   check(":nose: 換成黑色狗鼻子的 SVG,其餘文字照原樣", () => {
     const el = document.createElement("div");
     setIconText(el, ":nose: Warm — getting closer");

@@ -2,7 +2,7 @@ import { BAL, VERSION } from "./config/balance.js";
 import { bus, log } from "./core/EventBus.js";
 import { Game } from "./core/Game.js";
 import { Assets } from "./core/Assets.js";
-import { CameraRig } from "./render/CameraRig.js";
+import { CameraRig, CAMERA_OFFSET } from "./render/CameraRig.js";
 import { Vfx } from "./render/Vfx.js";
 import { buildWorld } from "./world/WorldBuilder.js";
 import { Player } from "./entities/Player.js";
@@ -23,6 +23,11 @@ import { DigFx } from "./render/DigFx.js";
 import { CollectionUI } from "./ui/CollectionUI.js";
 import { BackpackUI } from "./ui/BackpackUI.js";
 import { GroundItems } from "./render/GroundItems.js";
+import { HomeState } from "./systems/HomeState.js";
+import { Home } from "./systems/Home.js";
+import { HomeScene } from "./world/HomeScene.js";
+import { DisplayPicker } from "./ui/DisplayPicker.js";
+import { HOME_SCALE, SPAWN, STATIONS } from "./config/home.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
 const screens = new Screens();
@@ -47,7 +52,7 @@ screens.onStart(async (onProgress) => {
   const collection = new Collection();
   const backpack = new Backpack();
   const digSpots = new DigSpots(world.canDig, collision, player.pos, collection);
-  new Inventory(player, backpack, digSpots);
+  const inventory = new Inventory(player, backpack, digSpots);
   const exitSystem = new ExitSystem(world.exitPos, player, game.input);
 
   // 回饋層(純事件訂閱,不改遊戲狀態)
@@ -59,12 +64,18 @@ screens.onStart(async (onProgress) => {
   const bag = new BackpackUI(backpack);
   const groundItems = new GroundItems(game.scene);
   hud.camYaw = rig.yaw;
+
+  // 柯基的家:另一個場景,從地圖的大門回來
+  const homeState = new HomeState(backpack);
+  const homeView = new HomeScene(assets, homeState);
+  const picker = new DisplayPicker(homeState, backpack, () => homeView.refreshDisplays());
+  const home = new Home({ state: homeState, view: homeView, player, picker, isPaused: () => game.paused });
   new Sfx();
   new Bgm();
 
   // 事件接線
   // 挖到的寶物放進背包;被鴨子啄到就掉一件在旁邊的地上(背包空的就只是被推開)
-  bus.on("dig:found", ({ treasure }) => backpack.add(treasure.id));
+  bus.on("dig:found", ({ treasure, qty = 1 }) => backpack.add(treasure.id, qty));
   bus.on("player:pecked", ({ x, z, fromX, fromZ }) => {
     const a = Math.random() * Math.PI * 2;
     const d = 1.4 + Math.random() * 0.8;
@@ -74,9 +85,12 @@ screens.onStart(async (onProgress) => {
     backpack.dropRandom(x + dx, z + dz, x, z);
   });
   bus.on("input:sniff", () => {
-    if (!game.paused) digSpots.sniff(player);
+    if (!game.paused && mode === "world") digSpots.sniff(player);
   });
-  bus.on("input:zoom", (steps) => rig.zoomBy(steps));
+  bus.on("input:zoom", (steps) => {
+    rig.zoomBy(steps);
+    if (mode === "home") rig.zoomTarget = Math.min(rig.zoomTarget, HOME_ZOOM_MAX);
+  });
   // 翻圖鑑或背包時遊戲暫停(挖到一半就先中斷,洞留著)。兩個面板互斥,用計數避免切換時誤解除暫停
   let openPanels = 0, pausedBefore = false;
   bus.on("panel:open", () => {
@@ -88,21 +102,95 @@ screens.onStart(async (onProgress) => {
   bus.on("panel:close", () => {
     if (--openPanels === 0) game.paused = pausedBefore;
   });
-  bus.on("victory", () => {
+
+  // ---- 地圖 ↔ 家:畫面淡出、換場景、淡入
+  let mode = "world";
+  let worldZoom = 1;
+  const HOME_ZOOM = 0.56, HOME_ZOOM_MAX = 0.85;
+  const fadeEl = document.getElementById("fade");
+  const homeCount = document.getElementById("home-count");
+  const refreshHomeStat = () => { homeCount.textContent = `${homeState.repaired.size}/${STATIONS.length}`; };
+  refreshHomeStat();
+  bus.on("home:repaired", refreshHomeStat);
+  // 家裡的鏡頭看著柯基與房間中央之間,整間屋子都在畫面裡
+  const homeFocus = () => player.pos.clone().multiplyScalar(0.5);
+
+  let switching = false;
+  const switchTo = (next) => {
+    if (switching || next === mode) return;
+    switching = true;
     game.paused = true;
-    log("撤離成功!", "ok");
-  });
+    fadeEl.classList.add("on");
+    setTimeout(() => {
+      if (next === "home") enterHome();
+      else leaveHome();
+      fadeEl.classList.remove("on");
+      game.paused = false;
+      switching = false;
+    }, 380);
+  };
+
+  function enterHome() {
+    mode = "home";
+    digSpots.cancel("home");
+    player.dig = null;
+    player.sniff = null;
+    player.proud = 0;
+    homeView.scene.add(player.root);
+    player.pos.set(SPAWN.x * HOME_SCALE, 0, SPAWN.z * HOME_SCALE);
+    player.root.rotation.y = SPAWN.yaw;
+    game.postfx.setScene(homeView.scene);
+    worldZoom = rig.zoomTarget;
+    rig.zoom = rig.zoomTarget = HOME_ZOOM;
+    rig.offset.copy(CAMERA_OFFSET).multiplyScalar(HOME_ZOOM);
+    rig.snapTo(homeFocus());
+    inventory.enabled = false;
+    bus.emit("tip:hide");
+    home.enter();
+    log(homeState.repaired.size ? "Home sweet home 🏡" : "Home… or what's left of it. Let's fix it up with what you dig! 🔨", "info");
+  }
+
+  function leaveHome() {
+    home.leave();
+    mode = "world";
+    game.scene.add(player.root);
+    player.pos.copy(world.returnPos);
+    player.root.rotation.y = world.returnYaw;
+    collision.turn(player.pos, player.body());
+    game.postfx.setScene(game.scene);
+    rig.zoom = rig.zoomTarget = worldZoom;
+    rig.offset.copy(CAMERA_OFFSET).multiplyScalar(worldZoom);
+    rig.snapTo(player.pos);
+    inventory.enabled = true;
+    exitSystem.reset();
+  }
+  bus.on("exit:home", () => switchTo("home"));
+  bus.on("home:leave", () => switchTo("world"));
 
   // 邏輯系統(固定 60Hz)
-  game.addSystem({ update: (dt) => player.update(dt, game.input, rig, collision) });
-  game.addSystem({ update: (dt) => spawner.updateEnemies(dt, player, combat) });
-  game.addSystem({ update: (dt) => combat.update(dt) });
-  game.addSystem({ update: () => exitSystem.update() });
-  game.addSystem({ update: (dt) => digSpots.update(player, dt) });
+  game.addSystem({ update: (dt) => player.update(dt, game.input, rig, mode === "home" ? homeView.collision : collision) });
+  game.addSystem({
+    update: (dt) => {
+      if (mode === "home") {
+        home.update(dt);
+        return;
+      }
+      spawner.updateEnemies(dt, player, combat);
+      combat.update(dt);
+      exitSystem.update();
+      digSpots.update(player, dt);
+    },
+  });
 
   // 畫面系統(每幀)
   game.addSystem({
     frame: (dt, t) => {
+      digUI.frame();
+      if (mode === "home") {
+        rig.follow(homeFocus(), dt);
+        homeView.frame(dt, t);
+        return;
+      }
       rig.follow(player.pos, dt);
       // 玩家永遠不能被擋住,敵人只在追擊時才需要看得見
       rig.updateOcclusion([
@@ -113,19 +201,19 @@ screens.onStart(async (onProgress) => {
       world.grass.setTime(t);
       world.updateWater(t);
       groundItems.frame(dt, t);
-      digUI.frame();
       digFx.frame(dt);
       vfx.frame(dt, game.camera, new Set(spawner.enemies));
     },
   });
 
-  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI, backpack, bag, groundItems }; // Console 檢查用
+  window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI, backpack, bag, groundItems,
+    homeState, homeView, home, picker, switchTo, get mode() { return mode; } }; // Console 檢查用
 
   game.start();
   hud.show();
   bus.emit("game:started");
   log(`Game started ${VERSION}`, "ok");
-  log("Head to the EXIT gate on the east side and press F to extract", "info");
+  log("Your cottage is through the HOME gate on the east side — press F there to go home 🏡", "info");
   log("Treasure is buried out of sight — press Q to sniff it out :nose:", "info");
   log("Everything you dig up goes into your backpack 🎒 (press B)", "info");
 });

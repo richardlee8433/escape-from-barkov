@@ -535,14 +535,14 @@ export function buildWorld(scene, assets, collision) {
     collision.addCapsule(ax, az, bx, bz, 0.15, LOW);
   }
 
-  // EXIT 招牌
+  // 回家的招牌
   const cv = document.createElement("canvas");
   cv.width = 256; cv.height = 64;
   const c2 = cv.getContext("2d");
   c2.font = "bold 42px sans-serif";
-  c2.fillStyle = "#7dffd8";
+  c2.fillStyle = "#ffd98a";
   c2.textAlign = "center";
-  c2.fillText("EXIT", 128, 48);
+  c2.fillText("HOME", 128, 48);
   const label = new THREE.Mesh(
     new THREE.PlaneGeometry(6, 1.5),
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true })
@@ -556,7 +556,7 @@ export function buildWorld(scene, assets, collision) {
   // 出口地面光圈
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(2.0, 2.5, 40),
-    new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.5 })
+    new THREE.MeshBasicMaterial({ color: 0xffc96b, transparent: true, opacity: 0.5 })
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(ex, 0.04, ez);
@@ -587,6 +587,9 @@ export function buildWorld(scene, assets, collision) {
     playerStart,
     startYaw,
     exitPos: new THREE.Vector3(ex, 0, ez),
+    // 從家裡出來:站在大門內側幾步、背對大門
+    returnPos: new THREE.Vector3(ex - Math.sin(exitAng) * 4, 0, ez - Math.cos(exitAng) * 4),
+    returnYaw: exitAng + Math.PI,
     pathPoints: [...PATH, ...SIDE_PATH],
     homes,
   };

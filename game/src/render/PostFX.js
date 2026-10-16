@@ -63,11 +63,17 @@ const GradeTiltShift = {
 export class PostFX {
   constructor(renderer, scene, camera) {
     this.composer = new EffectComposer(renderer);
-    this.composer.addPass(new RenderPass(scene, camera));
+    this.renderPass = new RenderPass(scene, camera);
+    this.composer.addPass(this.renderPass);
     this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.18, 0.5, 0.82));
     this.composer.addPass(new OutputPass());
     this.gradePass = new ShaderPass(GradeTiltShift);
     this.composer.addPass(this.gradePass);
+  }
+
+  // 換場景(地圖 ↔ 家裡)
+  setScene(scene) {
+    this.renderPass.scene = scene;
   }
 
   setSize(w, h) {

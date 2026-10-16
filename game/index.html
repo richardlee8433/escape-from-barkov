@@ -145,6 +145,19 @@
     .panel .panel-detail .ds { font-size: 13px; color: #cdb896; margin-top: 3px; line-height: 1.5; }
     .panel .cell.empty { border: 2px dashed rgba(138, 111, 74, .35); background: #2f271b; cursor: default; }
     .panel .panel-hint { margin-top: 10px; font-size: 12px; color: #8f7a58; text-align: center; }
+    /* 擺設面板 */
+    #picker .pk-slots { display: flex; gap: 10px; justify-content: center; margin-top: 14px; padding: 12px;
+      border-radius: 10px; background: #231c12; }
+    #picker .pk-slots .cell { width: 74px; font-size: 34px; }
+    #picker .pk-slots .empty-slot { border-style: dashed; color: #8a6f4a; font-size: 24px; }
+    #picker .take { position: absolute; right: -8px; top: -8px; width: 24px; height: 24px; border-radius: 50%;
+      border: 1px solid #8a6f4a; background: #5b4630; color: #ffe9bd; font-size: 13px; cursor: pointer; padding: 0; }
+    #picker .pk-label { margin-top: 14px; font-size: 13px; color: #cdb896; }
+    #picker .pk-empty { grid-column: 1 / -1; text-align: center; color: #8f7a58; font-size: 13px; padding: 14px; }
+    /* 進出家門的淡入淡出 */
+    #fade { position: fixed; inset: 0; z-index: 28; background: #0d0a06; opacity: 0; pointer-events: none;
+      transition: opacity .35s ease; }
+    #fade.on { opacity: 1; }
 
     /* ---- 受擊回饋 ---- */
     /* 傷害方向：一圈容器旋轉到來向，子元素是頂端的一道弧光 */
@@ -200,7 +213,7 @@
   <div id="title-screen">
     <h1>🐕 Dig, Corgi, Dig!</h1>
     <div class="sub">a treasure hunt in the village of Barkov</div>
-    <div class="ver">v0.10.1 — sniff, dig and fill your backpack</div>
+    <div class="ver">v0.11.0 — dig up treasure, fix up your cottage</div>
     <button id="btn-start">Start Game</button>
     <button id="btn-howto">How to Play</button>
   </div>
@@ -214,7 +227,8 @@
       <div>Digging: press <kbd>E</kbd> or <kbd>Space</kbd> when the needle is in the green (gold = perfect)</div>
       <div><kbd>B</kbd> Backpack · <kbd>Tab</kbd> Treasure Book — rarer treasures are buried deeper</div>
       <div>Ducks are mischievous: a peck knocks you back and makes you drop something</div>
-      <div><kbd>F</kbd> Extract at the exit gate · <kbd>M</kbd> Toggle music</div>
+      <div><kbd>F</kbd> Go home at the HOME gate · <kbd>M</kbd> Toggle music</div>
+      <div>At home: <kbd>E</kbd> repair what your nose points at with things you dug up, or decorate shelves and tables with your treasures</div>
       <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;">Close</button>
     </div>
   </div>
@@ -222,6 +236,7 @@
   <div id="hud" class="hidden">
     <span id="bag-btn" title="Backpack (B)">🎒 <b id="bag-count">0</b></span>
     <span id="dex-btn" title="Treasure Book (Tab)">📖 <b id="dex-count">0</b></span>
+    <span id="home-stat" title="Cottage repairs">🏡 <b id="home-count">0/8</b></span>
   </div>
   <div id="tip" class="hidden"></div>
   <div id="scent" class="hidden"></div>
@@ -255,7 +270,17 @@
       <div class="panel-hint">B / Esc to close · Tab for the Treasure Book · your backpack is saved in this browser</div>
     </div>
   </div>
+  <div id="picker" class="panel hidden">
+    <div class="card">
+      <div class="panel-head"><h3></h3><span class="panel-count"></span><button class="panel-close" title="Close">✕</button></div>
+      <div class="pk-slots"></div>
+      <div class="pk-label">Pick a spot, then click a treasure from your backpack to put it there:</div>
+      <div class="panel-grid"></div>
+      <div class="panel-hint">↩ puts a treasure back in the backpack · Esc to close</div>
+    </div>
+  </div>
   <div id="log" class="hidden"></div>
+  <div id="fade"></div>
   <div id="extract-flash"></div>
   <div id="dmg-dirs"></div>
 

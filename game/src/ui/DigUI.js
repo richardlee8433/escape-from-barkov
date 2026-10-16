@@ -57,12 +57,12 @@ export class DigUI {
     this.perfectEl.style.width = `${(g.perfectHalf / g.half) * 100}%`;
   }
 
-  show({ treasure, tier, isNew, perfect, success, count }) {
+  show({ treasure, tier, qty = 1, isNew, perfect, success, count }) {
     const r = RARITIES[tier];
     const c = this.card;
     c.style.setProperty("--rc", r.color);
     c.querySelector(".rv-icon").textContent = treasure.icon;
-    c.querySelector(".rv-name").textContent = treasure.name;
+    c.querySelector(".rv-name").textContent = qty > 1 ? `${treasure.name} ×${qty}` : treasure.name;
     c.querySelector(".rv-rarity").textContent = r.name;
     c.querySelector(".rv-desc").textContent = treasure.desc;
     c.querySelector(".rv-new").classList.toggle("hidden", !isNew);

@@ -13,6 +13,10 @@ const BLENDER = [
   "fence", "gate", "bridge",
   "barrel", "crate", "chest",
   "reeds", "waterweed", "lilypad", "lily", "dirt_pile",
+  // 柯基的家(室內):可以修的東西都有壞的 / 修好的兩個版本
+  "home_shell", "home_floor", "home_floor_broken", "home_fireplace", "home_fireplace_broken",
+  "home_window", "home_window_broken", "home_shelf", "home_shelf_broken", "home_table", "home_table_broken",
+  "home_bed", "home_rug", "home_debris",
   // 角色:帶骨架與動畫(柯基 Idle/Walk/Run/Dig/Proud/Sniff,鴨子 Idle/Walk/Run/Peck)
   "corgi", "duck",
 ];
@@ -124,6 +128,13 @@ export class Assets {
   // 模型附帶的動畫片段(角色用)
   clips(name) {
     return this.lib.get(name)?.clips ?? [];
+  }
+
+  // 原封不動的複本(不縮放、不移動):家裡的零件都在同一個房間座標裡建模,直接疊在原點
+  cloneRaw(name) {
+    const rec = this.lib.get(name);
+    if (!rec) throw new Error(`Model not loaded: ${name}`);
+    return rec.scene.clone(true);
   }
 
   // 產生一個實例：縮放到目標尺寸、腳底貼齊 y=0。
