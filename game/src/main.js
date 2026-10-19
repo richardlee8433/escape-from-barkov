@@ -30,11 +30,13 @@ import { DisplayPicker } from "./ui/DisplayPicker.js";
 import { Bark } from "./systems/Bark.js";
 import { BarkFx } from "./render/BarkFx.js";
 import { SettingsUI } from "./ui/SettingsUI.js";
+import { TouchControls, initTouchMode } from "./ui/TouchControls.js";
 import { t, applyStatic } from "./i18n/i18n.js";
 import { HOME_SCALE, SPAWN, STATIONS } from "./config/home.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
 // 介面文字先換成玩家的語言;右上角的設定在標題畫面就能用
+initTouchMode();
 applyStatic();
 new SettingsUI();
 const screens = new Screens();
@@ -52,6 +54,8 @@ screens.onStart(async (onProgress) => {
   const player = new Player(game.scene, assets, world.playerStart, world.startYaw);
   const rig = new CameraRig(game.camera, game.scene);
   rig.setOccluders(world.occluders);
+  // 手機螢幕小,一開始鏡頭拉近一點
+  if (document.body.classList.contains("touch")) rig.zoom = rig.zoomTarget = 0.8;
   rig.snapTo(player.pos);
   const combat = new Combat(collision);
   const spawner = new Spawner(game.scene, assets, collision);
@@ -72,6 +76,7 @@ screens.onStart(async (onProgress) => {
   const bag = new BackpackUI(backpack);
   const groundItems = new GroundItems(game.scene);
   const barkFx = new BarkFx(() => player.root.parent, barker);
+  const touch = new TouchControls(game.input, game.renderer.domElement);
   hud.camYaw = rig.yaw;
 
   // 柯基的家:另一個場景,從地圖的大門回來
@@ -108,7 +113,7 @@ screens.onStart(async (onProgress) => {
   });
   bus.on("input:zoom", (steps) => {
     rig.zoomBy(steps);
-    if (mode === "home") rig.zoomTarget = Math.min(rig.zoomTarget, HOME_ZOOM_MAX);
+    if (mode === "home") rig.zoomTarget = Math.min(rig.zoomTarget, Math.max(HOME_ZOOM_MAX, homeZoom()));
   });
   // 翻圖鑑或背包時遊戲暫停(挖到一半就先中斷,洞留著)。兩個面板互斥,用計數避免切換時誤解除暫停
   let openPanels = 0, pausedBefore = false;
@@ -126,6 +131,13 @@ screens.onStart(async (onProgress) => {
   let mode = "world";
   let worldZoom = 1;
   const HOME_ZOOM = 0.56, HOME_ZOOM_MAX = 0.85;
+  // 直向的手機畫面窄:鏡頭退後,讓整間屋子的寬度都在畫面裡(以 16:9 橫向為準)
+  const homeZoom = () => {
+    const hNow = Math.atan(Math.tan((game.camera.fov * Math.PI) / 360) * game.camera.aspect);
+    const hRef = Math.atan(Math.tan((19 * Math.PI) / 180) * (16 / 9));
+    return HOME_ZOOM * Math.min(1.95, Math.max(1, Math.tan(hRef) / Math.tan(hNow)));
+  };
+  addEventListener("resize", () => { if (mode === "home") rig.zoomTarget = homeZoom(); });
   const fadeEl = document.getElementById("fade");
   const homeCount = document.getElementById("home-count");
   const refreshHomeStat = () => { homeCount.textContent = `${homeState.repaired.size}/${STATIONS.length}`; };
@@ -160,11 +172,12 @@ screens.onStart(async (onProgress) => {
     player.root.rotation.y = SPAWN.yaw;
     game.postfx.setScene(homeView.scene);
     worldZoom = rig.zoomTarget;
-    rig.zoom = rig.zoomTarget = HOME_ZOOM;
-    rig.offset.copy(CAMERA_OFFSET).multiplyScalar(HOME_ZOOM);
+    rig.zoom = rig.zoomTarget = homeZoom();
+    rig.offset.copy(CAMERA_OFFSET).multiplyScalar(rig.zoom);
     rig.snapTo(homeFocus());
     inventory.enabled = false;
     bus.emit("tip:hide");
+    bus.emit("exit:near", { near: false }); // 手機的「回家」按鈕收起來
     home.enter();
     log(t(homeState.repaired.size ? "log.homeSweet" : "log.homeBroken"), "info");
   }
@@ -237,6 +250,7 @@ screens.onStart(async (onProgress) => {
   bus.on("story:closed", () => {
     game.paused = false;
     hud.show();
+    touch.show();
     bus.emit("game:started");
     log(t("log.started", { v: VERSION }), "ok");
     log(t("log.hint.home"), "info");

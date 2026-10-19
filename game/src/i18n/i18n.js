@@ -16,8 +16,18 @@ export const LANGS = [
 export const getLang = () => settings.lang;
 const idx = () => (settings.lang === "zh" ? 1 : 0);
 
+// 觸控模式(手機):有「key@touch」版本的句子改用它(「按 E」變成「點 🐾」之類)
+let touch = false;
+export const isTouch = () => touch;
+export function setTouch(on) {
+  if (touch === on) return;
+  touch = on;
+  applyStatic();
+  bus.emit("lang:changed", { lang: settings.lang });
+}
+
 export function t(key, params = {}) {
-  const row = STRINGS[key];
+  const row = (touch && STRINGS[`${key}@touch`]) || STRINGS[key];
   if (!row) return key;
   const v = row[idx()] ?? row[0];
   if (typeof v === "function") return v(params);
@@ -31,7 +41,8 @@ export const rarityName = (r) => (zh() && ZH_DATA.rarity[r.id]) || r.name;
 export const stName = (st) => (zh() && ZH_DATA.station[st.id]?.name) || st.name;
 export const stVerb = (st) => (zh() && ZH_DATA.station[st.id]?.verb) || st.verb;
 export const stDecorate = (st) => (zh() && ZH_DATA.station[st.id]?.decorate) || st.decorate;
-export const scentLabel = (s) => (zh() && ZH_DATA.scent[s.id]) || s.label;
+export const scentLabel = (s) =>
+  (touch && s.id === "here" && t("scent.here@touch")) || (zh() && ZH_DATA.scent[s.id]) || s.label;
 
 // data-i18n:純文字;data-i18n-html:含 <kbd>/<br> 的固定文字(:nose: 換成狗鼻子);data-i18n-title:滑鼠提示
 export function applyStatic(root = document) {

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Dig, Corgi, Dig!</title>
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #241c12; font-family: system-ui, "Noto Sans TC", sans-serif; }
@@ -212,6 +212,60 @@
     #settings .set-val { width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: #ffc963; }
     #settings .panel-hint { margin-top: 20px; }
     html[lang="zh-Hant"] #letter .paper { font-family: "BiauKai", "DFKai-SB", "KaiTi", "STKaiti", "Kaiti TC", "Noto Serif TC", serif; font-size: 17px; }
+    /* ---- 手機:虛擬搖桿 + 右下角按鈕(body.touch 時才有) ---- */
+    html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    #app canvas { touch-action: none; }
+    #touch .stick-zone { position: fixed; left: 0; top: 70px; bottom: 0; width: 46%; z-index: 16; touch-action: none; }
+    #touch .stick-base {
+      position: fixed; z-index: 17; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,233,189,.10), rgba(255,233,189,.04));
+      border: 2px solid rgba(255,233,189,.28); pointer-events: none; opacity: .55; transition: opacity .15s;
+    }
+    #touch .stick-base.active { opacity: 1; transition: none; }
+    #touch .stick-knob {
+      position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%;
+      background: rgba(255,233,189,.55); border: 2px solid rgba(255,250,235,.8); box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    #touch .tbtns {
+      position: fixed; z-index: 18; right: calc(18px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom));
+      width: 190px; height: 190px; pointer-events: none;
+    }
+    #touch .tbtn {
+      position: absolute; pointer-events: auto; touch-action: none; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1px; border-radius: 50%; padding: 0; cursor: pointer;
+      color: #ffe9bd; background: rgba(20, 15, 8, .58); border: 2px solid rgba(255, 233, 189, .45);
+      box-shadow: 0 3px 10px rgba(0,0,0,.35); font-family: inherit;
+    }
+    #touch .tbtn .ic { font-size: 22px; line-height: 1; }
+    #touch .tbtn .ic .icon-nose { width: 30px; height: 20px; margin: 0; vertical-align: 0; }
+    #touch .tbtn .lb { font-size: 11px; font-weight: 700; letter-spacing: .5px; }
+    #touch .tbtn.down { background: rgba(255, 201, 99, .55); transform: scale(.94); }
+    #touch .tbtn.cooling { opacity: .45; }
+    #touch .act { right: 0; bottom: 0; width: 88px; height: 88px; }
+    #touch .act .ic { font-size: 32px; }
+    #touch .sniff { right: 100px; bottom: 2px; width: 64px; height: 64px; }
+    #touch .bark { right: 14px; bottom: 100px; width: 64px; height: 64px; }
+    #touch .home { right: 96px; bottom: 82px; width: 64px; height: 64px; border-color: #ffc963; }
+    body.touch #log { top: 62px; bottom: auto; width: min(320px, 44vw); max-height: 56px; font-size: 11px; pointer-events: none; }
+    body.touch #tip { bottom: calc(14px + env(safe-area-inset-bottom)); max-width: 46vw; text-align: center; font-size: 13px; }
+    body.touch #hud { top: calc(10px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); font-size: 14px; gap: 14px; padding: 7px 12px; }
+    body.touch #settings-btn { top: calc(10px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); }
+    body.touch #digbar { bottom: auto; top: 30%; }
+    body.touch #scent { bottom: auto; top: 22%; font-size: 16px; }
+    body.touch #bark-btn { display: none; }
+    @media (orientation: portrait) { body.touch #tip { bottom: calc(196px + env(safe-area-inset-bottom)); max-width: 80vw; } }
+    @media (max-height: 520px) {
+      #letter .paper { padding: 18px 26px 16px; font-size: 14px; line-height: 1.6; }
+      #letter .paper .greet { font-size: 16px; margin-bottom: 8px; }
+      #letter .paper p { margin-bottom: 8px; }
+      #letter .go { margin-top: 10px; padding: 8px 26px; }
+      #howto .card { padding: 14px 20px; line-height: 1.7; font-size: 13px; max-height: 92vh; overflow-y: auto; }
+    }
+    #rotate-hint {
+      position: fixed; z-index: 26; left: 50%; top: 40%; transform: translateX(-50%); padding: 10px 18px; border-radius: 12px;
+      background: rgba(20, 15, 8, .8); color: #ffe9bd; border: 1px solid rgba(138, 111, 74, .6); font-size: 15px;
+      white-space: nowrap; pointer-events: none; animation: scentin .3s ease-out;
+    }
     /* 進出家門的淡入淡出 */
     #fade { position: fixed; inset: 0; z-index: 28; background: #0d0a06; opacity: 0; pointer-events: none;
       transition: opacity .35s ease; }
@@ -271,7 +325,7 @@
   <div id="title-screen">
     <h1>🐕 <span data-i18n="title.name">Dig, Corgi, Dig!</span></h1>
     <div class="sub" data-i18n="title.sub">a treasure hunt in the village of Barkov</div>
-    <div class="ver">v0.13.0 · <span data-i18n="title.tagline">a letter from Mom, and a good loud bark</span></div>
+    <div class="ver">v0.14.0 · <span data-i18n="title.tagline">a letter from Mom, and a good loud bark</span></div>
     <button id="btn-start" data-i18n="btn.start">Start Game</button>
     <button id="btn-howto" data-i18n="btn.howto">How to Play</button>
   </div>
@@ -300,6 +354,7 @@
       <div data-i18n-html="howto.bark"></div>
       <div data-i18n-html="howto.home"></div>
       <div data-i18n-html="howto.house"></div>
+      <div data-i18n-html="howto.touch"></div>
       <div data-i18n-html="howto.settings"></div>
       <button id="btn-close-howto" style="margin-top:12px;font-size:14px;padding:6px 22px;border-radius:8px;border:1px solid #8a6f4a;background:#5b4630;color:#ffe9bd;cursor:pointer;" data-i18n="btn.close">Close</button>
     </div>

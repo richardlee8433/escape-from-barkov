@@ -31,7 +31,7 @@ Then open **http://localhost:5173/** in your browser; the root redirects to the 
 
 To publish as a static site, run `node tools/build-web.mjs`: `dist/` is self-contained (upload it anywhere, e.g. GitHub Pages), and `dist/artifact/` is the claude.ai Artifact variant (models converted from `.glb` to equivalent embedded glTF JSON).
 
-To test on **itch.io**, run `node tools/build-itch.mjs`. It runs the web build and writes `dist-itch/dig-corgi-dig-<version>-itch.zip` (about 11 MB, `index.html` at the top level). On itch.io: create a project with *Kind of project* = HTML, upload the zip, tick *This file will be played in the browser*, set the viewport to 1280 × 720 and enable the *Fullscreen button*. Saves (backpack, Treasure Book, cottage, settings) live in the player's browser.
+To test on **itch.io**, run `node tools/build-itch.mjs`. It runs the web build and writes `dist-itch/dig-corgi-dig-<version>-itch.zip` (about 11 MB, `index.html` at the top level). On itch.io: create a project with *Kind of project* = HTML, upload the zip, tick *This file will be played in the browser*, set the viewport to 1280 × 720, enable the *Fullscreen button* and tick *Mobile friendly* (landscape) so phones can play too. Saves (backpack, Treasure Book, cottage, settings) live in the player's browser.
 
 > The legacy prototype (v0.3.5, single-file) is at `/v0.3.5.html`. The visual style prototype is at `/proto/`.
 > Deterministic gameplay tests run in the browser at `/game/tests/run.html`.
@@ -46,6 +46,8 @@ To test on **itch.io**, run `node tools/build-itch.mjs`. It runs the web build a
 | `Q` | Sniff for buried treasure |
 | `R` | Bark: nearby ducks flap away in a panic (short cooldown) |
 | ⚙️ (top right) | Settings: language (English / 繁體中文) and music volume |
+
+**On phones and tablets** the game switches to touch controls automatically: drag anywhere on the left half of the screen to move (a small push walks, a full push runs), and use the buttons at the bottom right: 🐾 dig / use, the nose to sniff, 🗯️ to bark, and 🏡 (only next to the HOME gate, hold it) to go home. Pinch to zoom; during the digging minigame you can also tap anywhere. In portrait the camera widens its view (and pulls back indoors so the whole cottage fits); landscape gives the best view. Phones render at a lower resolution to keep the frame rate up.
 | `E` | Dig where your nose says "Right here!" · pick up something you dropped (or just walk over it) |
 | `E` / `Space` / click (while digging) | Dig when the needle is in the green zone (gold = perfect) |
 | `B` | Backpack |

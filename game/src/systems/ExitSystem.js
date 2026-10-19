@@ -17,6 +17,7 @@ export class ExitSystem {
   reset() {
     this.done = false;
     this.nearby = false;
+    bus.emit("exit:near", { near: false });
   }
 
   update() {
@@ -29,6 +30,7 @@ export class ExitSystem {
 
     if (near !== this.nearby) {
       this.nearby = near;
+      bus.emit("exit:near", { near }); // 手機版的「回家」按鈕跟著出現 / 消失
       bus.emit(near ? "tip:show" : "tip:hide", { msg: t("tip.home") });
     }
 

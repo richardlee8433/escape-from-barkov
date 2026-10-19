@@ -69,6 +69,10 @@ export const STRINGS = {
     "At home: <kbd>E</kbd> repair what your nose points at with things you dug up, or decorate shelves and tables with your treasures",
     "在家裡：<kbd>E</kbd> 用挖到的東西修理鼻子對著的地方，或用寶物布置架子和桌子",
   ],
+  "howto.touch": [
+    "On phones: drag on the left half of the screen to move · 🐾 dig and use · :nose: sniff · 🗯️ bark · 🏡 go home at the gate · pinch to zoom",
+    "手機：在畫面左半邊拖曳移動 · 🐾 挖掘與互動 · :nose: 嗅聞 · 🗯️ 吠叫 · 🏡 在大門旁回家 · 兩指縮放",
+  ],
   "howto.settings": [
     "<kbd>⚙️</kbd> (top right) Language and music volume",
     "<kbd>⚙️</kbd>（右上角）語言與音樂音量",
@@ -178,6 +182,37 @@ export const STRINGS = {
   "log.bgmOn": ["Music on (M)", "音樂開啟 (M)"],
   "log.bgmOff": ["Music off (M)", "音樂關閉 (M)"],
   "log.spawned": ["{n} ducks are wandering the village", "村子裡有 {n} 隻鴨子在閒晃"],
+
+  // ---- 手機版(觸控):按鈕名稱,以及把「按某個鍵」換成「點某個按鈕」的句子
+  "touch.act": ["Dig", "挖"],
+  "touch.sniff": ["Sniff", "聞"],
+  "touch.bark": ["Bark", "吠"],
+  "touch.home": ["Home", "回家"],
+  "touch.rotate": ["Turn your phone sideways for a better view", "把手機橫過來玩，視野會更好"],
+  "scent.here@touch": ["Right here! Tap 🐾 to dig", "就在這裡！點 🐾 開挖"],
+  "tip.dig@touch": ["Tap 🐾 to dig here", "點 🐾 在這裡開挖"],
+  "tip.home@touch": ["Tap 🏡 to go home", "點 🏡 回家"],
+  "tip.door@touch": ["Tap 🐾 to go out digging", "點 🐾 出門挖寶"],
+  "tip.decorate@touch": ["Tap 🐾 · {what}", "點 🐾 · {what}"],
+  "tip.repairReady@touch": ["Tap 🐾 · {verb} ({parts})", "點 🐾 · {verb}（{parts}）"],
+  "dig.help@touch": ["Tap 🐾 (or anywhere) in the green · gold = perfect", "綠區時點 🐾（或畫面任何地方）· 金色是完美"],
+  "log.hint.home@touch": [
+    "Your cottage is through the HOME gate on the east side. Tap 🏡 there to go home",
+    "小屋在東邊「家」的大門後面，走到那裡點 🏡 就能回家",
+  ],
+  "log.hint.sniff@touch": ["Treasure is buried out of sight. Tap :nose: to sniff it out", "寶物埋在地下看不見，點 :nose: 把它聞出來"],
+  "log.hint.bag@touch": ["Everything you dig up goes into your backpack 🎒 (top left)", "挖到的東西都會放進背包 🎒（左上角）"],
+  "log.hint.bark@touch": ["Ducks bothering you? Tap 🗯️ to bark", "鴨子來搗亂？點 🗯️ 對牠們吠"],
+  "log.quack@touch": ["Quack! A duck made you drop {name}. Walk over it to pick it up", "嘎！鴨子害你掉了{name}。走過去就能撿回來"],
+  "log.nothing@touch": ["Nothing here… tap :nose: to sniff for buried treasure", "這裡什麼都沒有…點 :nose: 聞聞看哪裡有寶物"],
+  "bag.empty@touch": [
+    "Your backpack is empty. Tap the nose button to sniff out buried treasure, then 🐾 to dig it up.",
+    "背包是空的。點鼻子按鈕聞出埋著的寶物，再點 🐾 把它挖出來。",
+  ],
+  "book.hint@touch": ["Tap ✕ to close · your collection is saved in this browser", "點 ✕ 關閉 · 圖鑑會存在這個瀏覽器裡"],
+  "bag.hint@touch": ["Tap ✕ to close · your backpack is saved in this browser", "點 ✕ 關閉 · 背包會存在這個瀏覽器裡"],
+  "picker.hint@touch": ["↩ puts a treasure back in the backpack · tap ✕ to close", "↩ 把寶物收回背包 · 點 ✕ 關閉"],
+  "settings.hint@touch": ["Settings are saved in this browser", "設定會存在這個瀏覽器裡"],
 
   // ---- 3D 場景裡的字
   "sign.home": ["HOME", "家"],
