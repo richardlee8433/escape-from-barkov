@@ -66,8 +66,8 @@ export const STRINGS = {
     "<kbd>F</kbd> 在「家」的大門回家 · <kbd>M</kbd> 開關音樂",
   ],
   "howto.house": [
-    "At home: <kbd>E</kbd> repair what your nose points at with things you dug up, or decorate shelves and tables with your treasures",
-    "在家裡：<kbd>E</kbd> 用挖到的東西修理鼻子對著的地方，或用寶物布置架子和桌子",
+    "At home you arrive in the yard by the front door: <kbd>E</kbd> at the door goes inside. Indoors, <kbd>E</kbd> repairs what your nose points at with things you dug up, or decorates shelves and tables with your treasures",
+    "回家會先到院子的門口：在門口按 <kbd>E</kbd> 進屋。屋裡按 <kbd>E</kbd> 用挖到的東西修理鼻子對著的地方，或用寶物布置架子和桌子",
   ],
   "howto.touch": [
     "On phones: drag on the left half of the screen to move · 🐾 dig and use · :nose: sniff · 🗯️ bark · 🏡 go home at the gate · pinch to zoom",
@@ -142,7 +142,9 @@ export const STRINGS = {
   // ---- 提示列
   "tip.dig": ["Press E to dig here 🐾", "按 E 在這裡開挖 🐾"],
   "tip.home": ["Press F to go home 🏡", "按 F 回家 🏡"],
-  "tip.door": ["Press E to go out digging 🐾", "按 E 出門挖寶 🐾"],
+  "tip.door": ["Press E to go out to the yard 🌳", "按 E 到院子 🌳"],
+  "tip.enterHouse": ["Press E to go inside 🏠", "按 E 進屋 🏠"],
+  "tip.yardGate": ["Press E to go out digging 🐾", "按 E 出門挖寶 🐾"],
   "tip.decorate": ["Press E · {what}", "按 E · {what}"],
   "tip.repairReady": ["Press E · {verb} ({parts})", "按 E · {verb}（{parts}）"],
   "tip.repairNeed": ["{verb}: needs {parts}", "{verb}：需要 {parts}"],
@@ -175,6 +177,10 @@ export const STRINGS = {
   "log.repaired": ["{name} repaired! 🔨", "{name}修好了！🔨"],
   "log.allFixed": ["The whole cottage is fixed up. Home sweet home 🏡", "整間小屋都修好了。甜蜜的家 🏡"],
   "log.homeSweet": ["Home sweet home 🏡", "回到家了 🏡"],
+  "log.yard": [
+    "Home! This is your yard. The open lawn is waiting for a garden someday 🌱",
+    "到家了！這是你的院子，空著的草地以後可以種花、布置 🌱",
+  ],
   "log.homeBroken": [
     "Home… or what's left of it. Let's fix it up with what you dig! 🔨",
     "這就是家…或者說，家剩下的部分。用挖到的東西把它修好吧！🔨",
@@ -192,7 +198,9 @@ export const STRINGS = {
   "scent.here@touch": ["Right here! Tap 🐾 to dig", "就在這裡！點 🐾 開挖"],
   "tip.dig@touch": ["Tap 🐾 to dig here", "點 🐾 在這裡開挖"],
   "tip.home@touch": ["Tap 🏡 to go home", "點 🏡 回家"],
-  "tip.door@touch": ["Tap 🐾 to go out digging", "點 🐾 出門挖寶"],
+  "tip.door@touch": ["Tap 🐾 to go out to the yard", "點 🐾 到院子"],
+  "tip.enterHouse@touch": ["Tap 🐾 to go inside", "點 🐾 進屋"],
+  "tip.yardGate@touch": ["Tap 🐾 to go out digging", "點 🐾 出門挖寶"],
   "tip.decorate@touch": ["Tap 🐾 · {what}", "點 🐾 · {what}"],
   "tip.repairReady@touch": ["Tap 🐾 · {verb} ({parts})", "點 🐾 · {verb}（{parts}）"],
   "dig.help@touch": ["Tap 🐾 (or anywhere) in the green · gold = perfect", "綠區時點 🐾（或畫面任何地方）· 金色是完美"],

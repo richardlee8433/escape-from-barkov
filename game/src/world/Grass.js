@@ -37,8 +37,8 @@ function tuftGeometry() {
 const MAX_CUTS = 8;
 
 export class GrassField {
-  constructor(scene, isGrassAt, colorAt, count = 80000) {
-    const size = BAL.world.size;
+  // heightAt(x, z):這裡的草要多高(1 = 原本;院子的草坪修短一點)
+  constructor(scene, isGrassAt, colorAt, count = 80000, size = BAL.world.size, heightAt = null) {
     const geo = tuftGeometry();
 
     this.uTime = { value: 0 };
@@ -97,7 +97,7 @@ export class GrassField {
       dummy.position.set(x, 0, z);
       dummy.rotation.set((Math.random() - 0.5) * 0.35, Math.random() * Math.PI, (Math.random() - 0.5) * 0.35);
       const s = 0.7 + Math.random() * 0.7;
-      dummy.scale.set(s, s * (0.7 + Math.random() * 0.7), s);
+      dummy.scale.set(s, s * (0.7 + Math.random() * 0.7) * (heightAt ? heightAt(x, z) : 1), s);
       dummy.updateMatrix();
       const [r, g, b] = colorAt(x, z);
       const c = new THREE.Color().setRGB(r / 255, g / 255, b / 255).convertSRGBToLinear();

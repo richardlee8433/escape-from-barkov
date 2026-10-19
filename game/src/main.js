@@ -33,6 +33,9 @@ import { SettingsUI } from "./ui/SettingsUI.js";
 import { TouchControls, initTouchMode } from "./ui/TouchControls.js";
 import { t, applyStatic } from "./i18n/i18n.js";
 import { HOME_SCALE, SPAWN, STATIONS } from "./config/home.js";
+import { YARD_SPAWN } from "./config/yard.js";
+import { YardScene } from "./world/YardScene.js";
+import { Yard } from "./systems/Yard.js";
 
 // 組裝一切:載資源 → 建世界 → 接系統 → 開跑。
 // 介面文字先換成玩家的語言;右上角的設定在標題畫面就能用
@@ -84,6 +87,12 @@ screens.onStart(async (onProgress) => {
   const homeView = new HomeScene(assets, homeState);
   const picker = new DisplayPicker(homeState, backpack, () => homeView.refreshDisplays());
   const home = new Home({ state: homeState, view: homeView, player, picker, isPaused: () => game.paused });
+  // 小屋外的院子(回家先到這裡,站在門口)
+  const yardView = new YardScene(assets, homeState);
+  const yard = new Yard({ view: yardView, player, isPaused: () => game.paused });
+  // 院子與屋裡的材質先編譯好(載入時做),第一次回家才不會卡一下
+  game.renderer.compile(yardView.scene, game.camera);
+  game.renderer.compile(homeView.scene, game.camera);
   new Sfx();
   new Bgm();
 
@@ -127,24 +136,32 @@ screens.onStart(async (onProgress) => {
     if (--openPanels === 0) game.paused = pausedBefore;
   });
 
-  // ---- 地圖 ↔ 家:畫面淡出、換場景、淡入
+  // ---- 村子 ↔ 院子 ↔ 屋裡:畫面淡出、換場景、淡入
+  //   村子的 HOME 大門(F)→ 院子,站在小屋門口;門口 E → 屋裡;屋裡的門 E → 回到院子門口;院子大門 E → 村子
   let mode = "world";
   let worldZoom = 1;
-  const HOME_ZOOM = 0.56, HOME_ZOOM_MAX = 0.85;
-  // 直向的手機畫面窄:鏡頭退後,讓整間屋子的寬度都在畫面裡(以 16:9 橫向為準)
-  const homeZoom = () => {
+  let yardGreeted = false;
+  const HOME_ZOOM = 0.56, HOME_ZOOM_MAX = 0.85, YARD_ZOOM = 0.72;
+  // 直向的手機畫面窄:鏡頭退後,讓整間屋子(院子)的寬度都在畫面裡(以 16:9 橫向為準)
+  const narrowFactor = (cap) => {
     const hNow = Math.atan(Math.tan((game.camera.fov * Math.PI) / 360) * game.camera.aspect);
     const hRef = Math.atan(Math.tan((19 * Math.PI) / 180) * (16 / 9));
-    return HOME_ZOOM * Math.min(1.95, Math.max(1, Math.tan(hRef) / Math.tan(hNow)));
+    return Math.min(cap, Math.max(1, Math.tan(hRef) / Math.tan(hNow)));
   };
-  addEventListener("resize", () => { if (mode === "home") rig.zoomTarget = homeZoom(); });
+  const homeZoom = () => HOME_ZOOM * narrowFactor(1.95);
+  const yardZoom = () => YARD_ZOOM * narrowFactor(1.6);
+  addEventListener("resize", () => {
+    if (mode === "home") rig.zoomTarget = homeZoom();
+    else if (mode === "yard") rig.zoomTarget = yardZoom();
+  });
   const fadeEl = document.getElementById("fade");
   const homeCount = document.getElementById("home-count");
   const refreshHomeStat = () => { homeCount.textContent = `${homeState.repaired.size}/${STATIONS.length}`; };
   refreshHomeStat();
   bus.on("home:repaired", refreshHomeStat);
-  // 家裡的鏡頭看著柯基與房間中央之間,整間屋子都在畫面裡
+  // 屋裡的鏡頭看著柯基與房間中央之間,整間屋子都在畫面裡
   const homeFocus = () => player.pos.clone().multiplyScalar(0.5);
+  const collisionFor = () => (mode === "home" ? homeView.collision : mode === "yard" ? yardView.collision : collision);
 
   let switching = false;
   const switchTo = (next) => {
@@ -153,59 +170,77 @@ screens.onStart(async (onProgress) => {
     game.paused = true;
     fadeEl.classList.add("on");
     setTimeout(() => {
-      if (next === "home") enterHome();
-      else leaveHome();
+      goTo(next);
       fadeEl.classList.remove("on");
       game.paused = false;
       switching = false;
     }, 380);
   };
 
-  function enterHome() {
-    mode = "home";
-    digSpots.cancel("home");
+  function placePlayer(scene, x, z, yaw, coll) {
     player.dig = null;
     player.sniff = null;
     player.proud = 0;
-    homeView.scene.add(player.root);
-    player.pos.set(SPAWN.x * HOME_SCALE, 0, SPAWN.z * HOME_SCALE);
-    player.root.rotation.y = SPAWN.yaw;
-    game.postfx.setScene(homeView.scene);
-    worldZoom = rig.zoomTarget;
-    rig.zoom = rig.zoomTarget = homeZoom();
-    rig.offset.copy(CAMERA_OFFSET).multiplyScalar(rig.zoom);
-    rig.snapTo(homeFocus());
-    inventory.enabled = false;
+    scene.add(player.root);
+    player.pos.set(x, 0, z);
+    player.root.rotation.y = yaw;
+    coll.turn(player.pos, player.body());
+  }
+
+  function setView(scene, zoom, focus) {
+    game.postfx.setScene(scene);
+    rig.zoom = rig.zoomTarget = zoom;
+    rig.offset.copy(CAMERA_OFFSET).multiplyScalar(zoom);
+    rig.snapTo(focus);
+  }
+
+  function goTo(next) {
+    const prev = mode;
+    if (prev === "world") {
+      digSpots.cancel("home");
+      worldZoom = rig.zoomTarget;
+    } else if (prev === "yard") yard.leave();
+    else home.leave();
+    mode = next;
+    inventory.enabled = next === "world";
     bus.emit("tip:hide");
     bus.emit("exit:near", { near: false }); // 手機的「回家」按鈕收起來
-    home.enter();
-    log(t(homeState.repaired.size ? "log.homeSweet" : "log.homeBroken"), "info");
+    if (next === "world") {
+      placePlayer(game.scene, world.returnPos.x, world.returnPos.z, world.returnYaw, collision);
+      setView(game.scene, worldZoom, player.pos);
+      exitSystem.reset();
+    } else if (next === "yard") {
+      // 從村子回來、或從屋裡出來,都站在小屋門口
+      placePlayer(yardView.scene, YARD_SPAWN.x, YARD_SPAWN.z, YARD_SPAWN.yaw, yardView.collision);
+      setView(yardView.scene, yardZoom(), player.pos);
+      yard.enter();
+      if (prev === "world" && !yardGreeted) {
+        yardGreeted = true;
+        log(t("log.yard"), "info");
+      }
+    } else {
+      placePlayer(homeView.scene, SPAWN.x * HOME_SCALE, SPAWN.z * HOME_SCALE, SPAWN.yaw, homeView.collision);
+      setView(homeView.scene, homeZoom(), homeFocus());
+      home.enter();
+      log(t(homeState.repaired.size ? "log.homeSweet" : "log.homeBroken"), "info");
+    }
   }
-
-  function leaveHome() {
-    home.leave();
-    mode = "world";
-    game.scene.add(player.root);
-    player.pos.copy(world.returnPos);
-    player.root.rotation.y = world.returnYaw;
-    collision.turn(player.pos, player.body());
-    game.postfx.setScene(game.scene);
-    rig.zoom = rig.zoomTarget = worldZoom;
-    rig.offset.copy(CAMERA_OFFSET).multiplyScalar(worldZoom);
-    rig.snapTo(player.pos);
-    inventory.enabled = true;
-    exitSystem.reset();
-  }
-  bus.on("exit:home", () => switchTo("home"));
-  bus.on("home:leave", () => switchTo("world"));
+  bus.on("exit:home", () => switchTo("yard"));
+  bus.on("yard:enterHouse", () => switchTo("home"));
+  bus.on("home:leave", () => switchTo("yard"));
+  bus.on("yard:leave", () => switchTo("world"));
 
   // 邏輯系統(固定 60Hz)
-  game.addSystem({ update: (dt) => player.update(dt, game.input, rig, mode === "home" ? homeView.collision : collision) });
+  game.addSystem({ update: (dt) => player.update(dt, game.input, rig, collisionFor()) });
   game.addSystem({ update: (dt) => barker.update(dt) });
   game.addSystem({
     update: (dt) => {
       if (mode === "home") {
         home.update(dt);
+        return;
+      }
+      if (mode === "yard") {
+        yard.update();
         return;
       }
       spawner.updateEnemies(dt, player, combat);
@@ -226,6 +261,11 @@ screens.onStart(async (onProgress) => {
         homeView.frame(dt, t);
         return;
       }
+      if (mode === "yard") {
+        rig.follow(player.pos, dt);
+        yardView.frame(dt, t);
+        return;
+      }
       rig.follow(player.pos, dt);
       // 玩家永遠不能被擋住,敵人只在追擊時才需要看得見
       rig.updateOcclusion([
@@ -242,7 +282,7 @@ screens.onStart(async (onProgress) => {
   });
 
   window.__debug = { game, player, spawner, world, assets, combat, rig, exitSystem, vfx, hud, collision, digSpots, collection, book, digFx, digUI, backpack, bag, groundItems, barker,
-    homeState, homeView, home, picker, switchTo, get mode() { return mode; } }; // Console 檢查用
+    homeState, homeView, home, picker, yardView, yard, switchTo, get mode() { return mode; } }; // Console 檢查用
 
   // 先開始畫(信後面就是遊戲畫面),讀完媽媽的信、按下「Let's go」才開始動
   game.paused = true;

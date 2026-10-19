@@ -568,7 +568,9 @@ from trees import add_leaves, build_broadleaf, build_conifer, build_shrub  # noq
 from home import (build_home_bed, build_home_debris, build_home_fireplace, build_home_fireplace_broken,  # noqa: E402
                   build_home_floor, build_home_floor_broken, build_home_rug, build_home_shelf,
                   build_home_shelf_broken, build_home_shell, build_home_table, build_home_table_broken,
-                  build_home_window, build_home_window_broken)
+                  build_home_window, build_home_window_broken,
+                  build_home_ext_shell, build_home_ext_roof, build_home_ext_roof_broken, build_home_ext_windows,
+                  build_home_ext_windows_broken, build_home_ext_chimney, build_home_ext_chimney_broken)
 from characters import build_corgi, build_duck, rig_corgi, rig_duck  # noqa: E402
 
 ASSETS = {
@@ -617,4 +619,12 @@ ASSETS = {
     "home_bed": (build_home_bed, dict(seed=107), 512, 0.3),
     "home_rug": (build_home_rug, dict(seed=108), 1024, 0.3),
     "home_debris": (build_home_debris, dict(seed=109), 512, 0.3),
+    # 院子裡看到的小屋外觀(修好前後各一)
+    "home_ext_shell": (build_home_ext_shell, dict(seed=111), 2048, 0.8),
+    "home_ext_roof": (build_home_ext_roof, dict(seed=112), 2048, 1.0, {"roof": ["thatch"]}),
+    "home_ext_roof_broken": (build_home_ext_roof_broken, dict(seed=112), 2048, 1.0, {"roof": ["thatch"]}),
+    "home_ext_windows": (build_home_ext_windows, dict(seed=113), 1024, 0.3),
+    "home_ext_windows_broken": (build_home_ext_windows_broken, dict(seed=113), 1024, 0.3),
+    "home_ext_chimney": (build_home_ext_chimney, dict(seed=114), 512, 0.4),
+    "home_ext_chimney_broken": (build_home_ext_chimney_broken, dict(seed=114), 512, 0.4),
 }

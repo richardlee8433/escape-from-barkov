@@ -19,6 +19,8 @@ const BLENDER = [
   "home_bed", "home_rug", "home_debris",
   // 角色:帶骨架與動畫(柯基 Idle/Walk/Run/Dig/Proud/Sniff,鴨子 Idle/Walk/Run/Peck)
   "corgi", "duck",
+  "home_ext_shell", "home_ext_roof", "home_ext_roof_broken", "home_ext_windows", "home_ext_windows_broken",
+  "home_ext_chimney", "home_ext_chimney_broken",
 ];
 
 // 樹葉面片(trees.py):透明葉叢貼圖用 alpha test 切出葉形(陰影也跟著是一片片的葉影),

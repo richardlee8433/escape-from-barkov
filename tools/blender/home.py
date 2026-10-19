@@ -464,3 +464,277 @@ def build_home_debris(name, seed):
             a.add(beam((x, y, 0.07), (x + math.cos(ang) * 0.7, y + math.sin(ang) * 0.7, 0.12), 0.14, 0.04, 0.01),
                   "wood_weathered", tint=_tint(rng, 0.7, 0.9), smooth=False)
     return finish_object(a.to_object())
+
+
+# ================================================================ 屋外(院子場景裡看到的小屋外觀)
+#
+# 和室內同一套房間座標(牆的外緣 = 室內 ± 牆厚),遊戲端一樣放大 1.4 倍。
+# 修理進度也看得到:屋頂破洞、窗戶釘木板、煙囪塌一半,各有修好前後兩個模型。
+# 門開在右牆(x = +外緣),位置與室內的門口相同。
+
+EXT_PITCH = math.radians(42)
+EXT_OVX = 0.55            # 山牆方向的出簷
+EXT_OVS = 0.75            # 簷口沿坡面多伸出去的長度
+FRONT_WINDOWS = [(-3.4, -2.0), (1.0, 2.4)]    # 前牆(朝鏡頭)的兩扇窗 x 範圍
+SIDE_WINDOW = (0.9, 2.1)                      # 右牆(有門的那面)門旁的窗 y 範圍
+WIN_Z = (1.15, 2.25)
+CHIM_Y = ((FIRE_Y[0] + FIRE_Y[1]) / 2, 1.2)   # 煙囪沿左牆的中心與寬度
+
+
+def _ext():
+    xo0, xo1, yo0, yo1 = X0 - T, X1 + T, Y0 - T, Y1 + T
+    d2 = (yo1 - yo0) / 2
+    apex = H + (d2 + 0.05) * math.tan(EXT_PITCH)
+    return xo0, xo1, yo0, yo1, d2, apex
+
+
+def build_home_ext_shell(name, seed):
+    from lib import fbm  # noqa: F401
+    rng = _rng(seed)
+    a = Asset(name)
+    xo0, xo1, yo0, yo1, d2, apex = _ext()
+
+    def wall(x0, x1, y0, y1, z0, z1, mat="plaster"):
+        a.add(beam(((x0 + x1) / 2, (y0 + y1) / 2, z0), ((x0 + x1) / 2, (y0 + y1) / 2, z1),
+                   y1 - y0, x1 - x0, 0.01, up=(1, 0, 0)), mat, smooth=False)
+
+    def tb(p, q, w=0.2, mat="timber"):
+        a.add(beam(p, q, w, w, 0.025), mat, tint=_tint(rng), smooth=False)
+
+    # ---- 石砌牆腳
+    for (x0, x1, y0, y1) in ((xo0 - 0.06, xo1 + 0.06, yo0 - 0.06, yo0 + 0.2), (xo0 - 0.06, xo1 + 0.06, yo1 - 0.2, yo1 + 0.06),
+                             (xo0 - 0.06, xo0 + 0.2, yo0, yo1), (xo1 - 0.2, xo1 + 0.06, yo0, DOOR[0] - 0.05),
+                             (xo1 - 0.2, xo1 + 0.06, DOOR[1] + 0.05, yo1)):
+        wall(x0, x1, y0, y1, 0.0, 0.42, "stone_found")
+    # ---- 灰泥牆(右牆在門口斷開,門上方補一塊)
+    wall(xo0, xo1, yo0, yo0 + T, 0.4, H)
+    wall(xo0, xo1, yo1 - T, yo1, 0.4, H)
+    wall(xo0, xo0 + T, yo0, yo1, 0.4, H)
+    wall(xo1 - T, xo1, yo0, DOOR[0], 0.4, H)
+    wall(xo1 - T, xo1, DOOR[1], yo1, 0.4, H)
+    wall(xo1 - T, xo1, DOOR[0], DOOR[1], 2.35, H)
+    # 山牆三角(左右兩端)
+    gable = bmesh.new()
+    vs = []
+    for x in (xo0 + 0.02, xo1 - 0.02):
+        vs.append([gable.verts.new((x, yo0, H)), gable.verts.new((x, yo1, H)), gable.verts.new((x, 0, apex))])
+    gable.faces.new(vs[0][::-1])
+    gable.faces.new(vs[1])
+    for i in range(3):
+        j = (i + 1) % 3
+        gable.faces.new((vs[0][i], vs[0][j], vs[1][j], vs[1][i]))
+    bmesh.ops.recalc_face_normals(gable, faces=gable.faces)
+    a.add(gable, "plaster", smooth=False)
+
+    # ---- 木骨架:前後長牆
+    for y in (yo0 - 0.03, yo1 + 0.03):
+        tb((xo0 - 0.1, y, 0.5), (xo1 + 0.1, y, 0.5))
+        tb((xo0 - 0.12, y, H - 0.08), (xo1 + 0.12, y, H - 0.08))
+        for x in (xo0, -2.7, -0.3, 0.6, 3.0, xo1):
+            tb((x, y, 0.5), (x, y, H - 0.08))
+        tb((-0.3, y, 0.6), (0.6, y, H - 0.2), 0.14)
+        tb((3.0, y, 0.6), (xo1, y, H - 0.25), 0.14)
+        tb((xo0, y, H - 0.25), (-2.7, y, 0.6), 0.14)
+    # 左右山牆
+    for x in (xo0 - 0.03, xo1 + 0.03):
+        tb((x, yo0, 0.5), (x, yo1, 0.5))
+        tb((x, yo0 - 0.1, H - 0.08), (x, yo1 + 0.1, H - 0.08))
+        tb((x, yo0 - 0.05, H), (x, 0, apex + 0.05))
+        tb((x, yo1 + 0.05, H), (x, 0, apex + 0.05))
+        tb((x, 0, H - 0.08), (x, 0, apex - 0.2))
+        tb((x, -1.6, H), (x, -0.15, apex - 1.1), 0.14)
+        tb((x, 1.6, H), (x, 0.15, apex - 1.1), 0.14)
+        for y in (yo0, yo1):
+            tb((x, y, 0.5), (x, y, H - 0.08))
+    xr = xo1 + 0.03
+    for y in (DOOR[0] - 0.12, DOOR[1] + 0.12):
+        tb((xr, y, 0.5), (xr, y, 2.45))
+    tb((xr, DOOR[0] - 0.2, 2.45), (xr, DOOR[1] + 0.2, 2.45))
+
+    # ---- 門(關著):直條木板 + 兩道橫檔 + 鐵把手,門前一塊踏石
+    dx = xo1 + 0.05
+    n = 5
+    for k in range(n):
+        y = DOOR[0] + 0.06 + (DOOR[1] - DOOR[0] - 0.12) * (k + 0.5) / n
+        a.add(beam((dx, y, 0.42), (dx, y, 2.32), (DOOR[1] - DOOR[0] - 0.12) / n - 0.008, 0.06, 0.01, up=(1, 0, 0)),
+              "wood_door", tint=_tint(rng, 0.85, 1.1), smooth=False)
+    for z in (0.9, 1.95):
+        a.add(beam((dx + 0.04, DOOR[0] + 0.1, z), (dx + 0.04, DOOR[1] - 0.1, z), 0.04, 0.12, 0.01), "wood_door", smooth=False)
+    a.add(blob(0.045, 1, (1, 1, 1), loc=(dx + 0.09, DOOR[1] - 0.22, 1.35), amp=0.0), "iron")
+    a.add(blob(0.62, 3, (0.85, 1.15, 0.14), loc=(xo1 + 0.6, (DOOR[0] + DOOR[1]) / 2, 0.04), amp=0.12, freq=2, seed=5),
+          "stone_found")
+    # 門邊的提燈
+    ly = DOOR[1] + 0.42
+    a.add(beam((xo1 + 0.02, ly, 2.45), (xo1 + 0.32, ly, 2.45), 0.035, 0.035, 0.0), "iron", smooth=False)
+    a.add(beam((xo1 + 0.32, ly, 2.2), (xo1 + 0.32, ly, 2.42), 0.16, 0.16, 0.01), "window_glass", smooth=False)
+    a.add(beam((xo1 + 0.32, ly, 2.42), (xo1 + 0.32, ly, 2.5), 0.2, 0.2, 0.01), "iron", smooth=False)
+
+    # ---- 煙囪下半段(貼著左山牆外側,到屋簷高度)
+    cy, cw = CHIM_Y
+    a.add(beam((xo0 - 0.36, cy, 0.0), (xo0 - 0.36, cy, H + 0.4), cw, 0.72, 0.03), "chimney", smooth=False)
+    return finish_object(a.to_object(), 50)
+
+
+def _ext_roof(name, seed, broken):
+    from lib import apply_modifiers, fbm, grid
+    rng = _rng(seed)
+    a = Asset(name)
+    xo0, xo1, yo0, yo1, d2, apex = _ext()
+    cx = (xo0 + xo1) / 2
+    Lx = (xo1 - xo0) / 2 + EXT_OVX
+    S = (d2 + 0.05) / math.cos(EXT_PITCH) + EXT_OVS
+    rows = 6
+    rh = S / rows
+    tone = (0.74, 0.72, 0.68) if broken else (1.0, 1.0, 1.0)
+    holes = ROOF_HOLES if broken else []
+    for side in (-1, 1):
+        dvec = Vector((0, side * math.cos(EXT_PITCH), -math.sin(EXT_PITCH)))
+        nvec = Vector((0, side * math.sin(EXT_PITCH), math.cos(EXT_PITCH)))
+        ridge = Vector((cx, 0, apex))
+        # 椽條(只有從破洞才看得到)
+        if broken:
+            for k in range(11):
+                x = cx - Lx + 0.4 + k * (2 * Lx - 0.8) / 10
+                p0 = ridge + Vector((x - cx, 0, -0.05))
+                p1 = ridge + dvec * (S - 0.3) + Vector((x - cx, 0, -0.05))
+                a.add(beam(p0, p1, 0.09, 0.12, 0.01), "timber", tint=(0.7, 0.7, 0.7), smooth=False)
+        for k in range(rows):
+            s_lo = S - k * rh
+            s_hi = max(-0.25, s_lo - rh * 1.6) if k < rows - 1 else -0.25
+            lift0 = 0.12 + k * 0.045
+            ph = rng.uniform(0, 6.28)
+
+            def fn(u, v, s_lo=s_lo, s_hi=s_hi, lift0=lift0, ph=ph, k=k):
+                x = -Lx + 2 * Lx * u
+                wave = 0.11 * math.sin(x * 2.3 + ph) + 0.06 * fbm(Vector((x * 1.3, ph, 0)), 2)
+                s = s_hi + (s_lo + wave - s_hi) * v
+                lift = lift0 + 0.035 * fbm(Vector((x * 0.9, s * 0.9, ph)), 2)
+                if k == 0 and v > 0.55:
+                    lift -= ((v - 0.55) / 0.45) ** 2 * 0.3
+                elif v > 0.7:
+                    lift -= ((v - 0.7) / 0.3) ** 2 * 0.12
+                edge = abs(x) - (Lx - 0.45)
+                if edge > 0:
+                    lift -= (edge / 0.45) ** 2 * 0.32
+                return ridge + dvec * s + nvec * lift + Vector((x, 0, 0))
+
+            row = grid(64, 8, fn)
+            if holes:
+                # 平面上落在破洞範圍的草片拿掉(洞的邊緣參差一點)
+                dead = []
+                for f in row.faces:
+                    c = f.calc_center_median()
+                    for (hx, hy) in holes:
+                        if math.copysign(1, hy) != side:
+                            continue
+                        r = 0.78 + 0.18 * math.sin(c.x * 7 + c.y * 5)
+                        if math.hypot(c.x - hx, c.y - hy) < r:
+                            dead.append(f)
+                            break
+                bmesh.ops.delete(row, geom=dead, context="FACES")
+            row = apply_modifiers(row, [("SOLIDIFY", dict(thickness=0.3 if k == 0 else 0.16, offset=-1.0))])
+            a.add(row, "thatch", tint=tone)
+    # 屋脊
+    rlift = 0.12 + (rows - 1) * 0.045
+
+    def ridge_fn(u, v):
+        x = cx - Lx + 0.25 + (2 * Lx - 0.5) * u
+        ang = -1.9 + 3.8 * v
+        r = 0.36 + 0.03 * fbm(Vector((x * 1.5, ang, 0)), 2)
+        return Vector((x, math.sin(ang) * r * 1.15, apex + rlift + math.cos(ang) * r * 0.75 - 0.12))
+    a.add(grid(56, 12, ridge_fn), "thatch", tint=tone)
+    if broken:
+        # 一撮撮塌下來掛在簷口的稻草
+        for _ in range(6):
+            x = rng.uniform(xo0, xo1)
+            side = rng.choice((-1, 1))
+            a.add(blob(rng.uniform(0.18, 0.3), 2, (1.6, 0.8, 0.5), loc=(x, side * (d2 + 0.55), H - 0.05),
+                       amp=0.3, freq=2.5, seed=rng.random() * 40), "thatch", tint=tone)
+    return finish_object(a.to_object(), 40)
+
+
+def build_home_ext_roof(name, seed):
+    return _ext_roof(name, seed, False)
+
+
+def build_home_ext_roof_broken(name, seed):
+    return _ext_roof(name, seed, True)
+
+
+def _ext_windows(name, seed, broken):
+    rng = _rng(seed)
+    a = Asset(name)
+    xo0, xo1, yo0, yo1, d2, apex = _ext()
+    z0, z1 = WIN_Z
+
+    def one(c0, c1, at, axis):
+        # axis "y":窗在前/後牆(沿 x 展開,at = 牆面 y);axis "x":窗在山牆(沿 y 展開,at = 牆面 x)
+        out = -1 if (axis == "y" and at < 0) else 1
+        m = (c0 + c1) / 2
+        w = c1 - c0
+
+        def P(c, z, off=0.0):
+            return (c, at + out * off, z) if axis == "y" else (at + out * off, c, z)
+        # 直立的方塊:up=(0,1,0) 時寬度沿 X(前後牆),up=(1,0,0) 時寬度沿 Y(山牆);薄的那一邊朝外
+        up = (0, 1, 0) if axis == "y" else (1, 0, 0)
+        if broken:
+            # 沒有玻璃的黑窗洞 + 斜釘的舊木板
+            a.add(beam(P(m, z0), P(m, z1), w, 0.03, 0.0, up=up), "stone_dark", smooth=False)
+            for k in range(3):
+                zz = z0 + 0.15 + k * 0.33
+                a.add(beam(P(c0 - 0.15, zz + rng.uniform(-0.05, 0.08), 0.08), P(c1 + 0.15, zz + rng.uniform(0.1, 0.3), 0.08),
+                           0.2, 0.04, 0.01), "wood_weathered", tint=_tint(rng, 0.75, 0.95), smooth=False)
+            return
+        # 玻璃、窗格、窗台、花箱
+        a.add(beam(P(m, z0), P(m, z1), w, 0.03, 0.0, up=up), "window_glass", smooth=False)
+        for c in (c0, m, c1):
+            a.add(beam(P(c, z0, 0.05), P(c, z1, 0.05), 0.07, 0.07, 0.01), "wood_light", smooth=False)
+        for z in (z0, (z0 + z1) / 2, z1):
+            a.add(beam(P(c0, z, 0.05), P(c1, z, 0.05), 0.07, 0.07, 0.01), "wood_light", smooth=False)
+        a.add(beam(P(c0 - 0.12, z0 - 0.2, 0.2), P(c1 + 0.12, z0 - 0.2, 0.2), 0.26, 0.24, 0.02), "wood_door", smooth=False)
+        cols = [srgb("#d9473f"), srgb("#f2c14e"), srgb("#f0eadf"), srgb("#c95b9a")]
+        for k in range(9):
+            c = c0 + (k + 0.5) * w / 9
+            a.add(blob(0.08, 1, (1, 1, 0.8), loc=P(c + rng.uniform(-0.04, 0.04), z0 - 0.02, 0.22), amp=0.2, freq=3,
+                       seed=rng.random() * 30), "petal", tint=rng.choice(cols))
+            a.add(blob(0.07, 1, (1.3, 1, 0.6), loc=P(c, z0 - 0.08, 0.26), amp=0.2, freq=3, seed=k), "reed")
+
+    for (x0, x1) in FRONT_WINDOWS:
+        one(x0, x1, yo0 - 0.02, "y")
+    one(WIN[0], WIN[1], yo1 + 0.02, "y")
+    one(SIDE_WINDOW[0], SIDE_WINDOW[1], xo1 + 0.02, "x")
+    return finish_object(a.to_object(), 50)
+
+
+def build_home_ext_windows(name, seed):
+    return _ext_windows(name, seed, False)
+
+
+def build_home_ext_windows_broken(name, seed):
+    return _ext_windows(name, seed, True)
+
+
+def _ext_chimney(name, seed, broken):
+    rng = _rng(seed)
+    a = Asset(name)
+    xo0, xo1, yo0, yo1, d2, apex = _ext()
+    cy, cw = CHIM_Y
+    x = xo0 - 0.36
+    if broken:
+        top = H + 1.3
+        a.add(beam((x, cy, H + 0.4), (x, cy, top), cw, 0.72, 0.03), "chimney", smooth=False)
+        _stones(a, rng, 6, x - 0.3, x + 0.3, cy - cw / 2, cy + cw / 2, top - 0.1, (0.1, 0.17))
+    else:
+        top = apex + 0.9
+        a.add(beam((x, cy, H + 0.4), (x, cy, top), cw, 0.72, 0.03), "chimney", smooth=False)
+        a.add(beam((x, cy, top), (x, cy, top + 0.14), cw + 0.2, 0.92, 0.02), "stone_found", smooth=False)
+        a.add(limb((x, cy, top + 0.1), (x, cy, top + 0.42), 0.13, 0.11, 12), "wood_weathered", tint=srgb("#b5653f"))
+    return finish_object(a.to_object(), 50)
+
+
+def build_home_ext_chimney(name, seed):
+    return _ext_chimney(name, seed, False)
+
+
+def build_home_ext_chimney_broken(name, seed):
+    return _ext_chimney(name, seed, True)
