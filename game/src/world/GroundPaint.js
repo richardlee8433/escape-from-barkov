@@ -202,8 +202,9 @@ function detailMaterial(map) {
            float fade = smoothstep(0.0, 0.12, under) * (1.0 - 0.5 * smoothstep(1.0, 2.0, under));
            diffuseColor.rgb += vec3(0.8, 1.0, 0.95) * caustics(w, uGTime) * 0.4 * fade;
          }
-         // 界外(邊界石牆以外)壓暗一點
-         diffuseColor.rgb *= mix(1.0, 0.78, step(${(SIZE / 2).toFixed(1)}, max(abs(w.x), abs(w.y))));
+         // 界外:離邊界石牆越遠越暗一點(慢慢淡出,不是一刀切),再交給霧
+         float outD = max(abs(w.x), abs(w.y));
+         diffuseColor.rgb *= mix(1.0, 0.8, smoothstep(${(SIZE / 2 + 2).toFixed(1)}, ${(SIZE / 2 + 40).toFixed(1)}, outD));
        }`
     );
   };

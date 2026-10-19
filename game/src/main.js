@@ -161,6 +161,14 @@ screens.onStart(async (onProgress) => {
   bus.on("home:repaired", refreshHomeStat);
   // 屋裡的鏡頭看著柯基與房間中央之間,整間屋子都在畫面裡
   const homeFocus = () => player.pos.clone().multiplyScalar(0.5);
+  // 鏡頭不跟到地圖最邊緣:柯基靠近邊界時鏡頭停住,畫面不會露出一大片界外
+  const CAM_LIMIT = BAL.world.size / 2 - 18;
+  const camTarget = () => {
+    const p = player.pos.clone();
+    p.x = Math.max(-CAM_LIMIT, Math.min(CAM_LIMIT, p.x));
+    p.z = Math.max(-CAM_LIMIT, Math.min(CAM_LIMIT, p.z));
+    return p;
+  };
   const collisionFor = () => (mode === "home" ? homeView.collision : mode === "yard" ? yardView.collision : collision);
 
   let switching = false;
@@ -207,7 +215,7 @@ screens.onStart(async (onProgress) => {
     bus.emit("exit:near", { near: false }); // 手機的「回家」按鈕收起來
     if (next === "world") {
       placePlayer(game.scene, world.returnPos.x, world.returnPos.z, world.returnYaw, collision);
-      setView(game.scene, worldZoom, player.pos);
+      setView(game.scene, worldZoom, camTarget());
       exitSystem.reset();
     } else if (next === "yard") {
       // 從村子回來、或從屋裡出來,都站在小屋門口
@@ -266,7 +274,7 @@ screens.onStart(async (onProgress) => {
         yardView.frame(dt, t);
         return;
       }
-      rig.follow(player.pos, dt);
+      rig.follow(camTarget(), dt);
       // 玩家永遠不能被擋住,敵人只在追擊時才需要看得見
       rig.updateOcclusion([
         player.pos,
@@ -274,6 +282,7 @@ screens.onStart(async (onProgress) => {
       ]);
       world.followSun(player.pos);
       world.grass.setTime(t);
+      world.outerGrass.setTime(t);
       world.updateWater(t);
       groundItems.frame(dt, t);
       digFx.frame(dt);

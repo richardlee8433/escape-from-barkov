@@ -9,6 +9,7 @@ import { FlowerField } from "./Flowers.js";
 import { Water, FishSchool } from "./Water.js";
 import { InstancedProp, placeMatrix } from "./Props.js";
 import { CAMERA_OFFSET } from "../render/CameraRig.js";
+import { IS_TOUCH } from "../core/Game.js";
 import { bus } from "../core/EventBus.js";
 import { t } from "../i18n/i18n.js";
 
@@ -43,6 +44,14 @@ export function buildWorld(scene, assets, collision) {
   const ground = buildGround();
   scene.add(ground.mesh);
   const grass = new GrassField(scene, ground.isGrassAt, ground.colorAt);
+  // 界外的草:接著界內的草從邊界石牆往外長,越遠越稀,看不出界內界外的分界線
+  const OUT0 = HALF - 5, OUT1 = HALF + 28;
+  const outerGrass = new GrassField(scene, (x, z) => {
+    const d = Math.max(Math.abs(x), Math.abs(z));
+    if (d < OUT0 || d > OUT1) return false;
+    if (terrainHeight(x, z) !== 0 || lakeSDF(x, z) < 2 || ravineDistance(x, z) < RAVINE_HALF + 1) return false;
+    return Math.random() < 1 - 0.75 * (d - OUT0) / (OUT1 - OUT0);
+  }, ground.colorAt, IS_TOUCH ? 16000 : 34000, OUT1 * 2 + 8);
 
   // ---------- 水:溪流與地圖南緣的淺水湖 ----------
   // 兩者共用水位,水面透明、白沫依實際深度長在岸邊與障礙物周圍(見 Water.js)
@@ -505,17 +514,30 @@ export function buildWorld(scene, assets, collision) {
   // ---------- 花海(成片的藍、紫、白小花) ----------
   new FlowerField(scene, (x, z) => ground.isGrassAt(x, z) && !inReserved(x, z, -4));
 
-  // ---------- 界外森林(純視覺,沒有碰撞;邊界石牆外一圈樹,地圖不再像懸在半空) ----------
-  for (let i = 0; i < 110; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const ring = HALF + 1 + Math.random() * 14;
-    // 方形地圖:沿方形外圈取點
-    const x = Math.max(-ring, Math.min(ring, Math.cos(a) * ring * 1.5));
-    const z = Math.max(-ring, Math.min(ring, Math.sin(a) * ring * 1.5));
-    if (ravineDistance(x, z) < RAVINE_HALF + 3) continue; // 不要長進延伸到界外的溪流
-    if (lakeSDF(x, z) < 5) continue;                      // 也不要長在湖裡或沙灘上
+  // ---------- 界外森林(純視覺,沒有碰撞) ----------
+  // 俯視角遊戲的邊界通常是一道「自然的牆」:這裡是石牆外緊貼一圈灌木,
+  // 再往外兩三排越來越密的樹林,地圖就像是林間的一塊空地,而不是懸在半空的一塊地。
+  // 方形外圈上取點:d = 離邊界的距離
+  const onRing = (d) => {
+    const side = (Math.random() * 4) | 0, u = (Math.random() * 2 - 1) * (HALF + d);
+    const r = HALF + d;
+    return side === 0 ? [u, -r] : side === 1 ? [u, r] : side === 2 ? [-r, u] : [r, u];
+  };
+  const outsideOk = (x, z, water) => ravineDistance(x, z) >= RAVINE_HALF + water && lakeSDF(x, z) >= water + 2;
+  const scale = IS_TOUCH ? 0.6 : 1; // 手機少放一點
+  // 石牆外緊貼的灌木(擋住牆腳和外面地面的交界)
+  for (let i = 0; i < 150 * scale; i++) {
+    const [x, z] = onRing(-1 + Math.random() * 6);
+    if (!outsideOk(x, z, 2)) continue;
+    put(Math.random() < 0.7 ? "bush" : "bush_flower", x, z, 1.3 + Math.random() * 1.1, undefined, { dim: "y", center: true });
+  }
+  // 樹林:越往外越密、越高
+  for (let i = 0; i < 190 * scale; i++) {
+    const d = 3 + Math.pow(Math.random(), 0.7) * 20;
+    const [x, z] = onRing(d);
+    if (!outsideOk(x, z, 3)) continue;
     const t = TREES[(Math.random() * TREES.length) | 0];
-    put(t.name, x, z, t.h[0] + Math.random() * (t.h[1] - t.h[0]) * 1.2);
+    put(t.name, x, z, (t.h[0] + Math.random() * (t.h[1] - t.h[0])) * (1 + d / 40));
   }
 
   // ---------- 出口 ----------
@@ -578,6 +600,7 @@ export function buildWorld(scene, assets, collision) {
   return {
     followSun,
     grass,
+    outerGrass,
     // 水面、水底光紋、魚影都跟著時間動
     updateWater(t) {
       stream.setTime(t);
